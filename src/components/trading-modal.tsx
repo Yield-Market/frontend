@@ -64,9 +64,8 @@ export function TradingModal({
   const { yesPrice, noPrice, loading: pmLoading } = usePolymarketData(conditionId, 60000)
   const selectedPrice = selectedOutcome === 'YES' ? yesPrice : noPrice
   const displayOdds = selectedPrice && selectedPrice > 0 ? (1 / selectedPrice) : 0
-  // Expected APY for yield after deposit (can be overridden per-market via markets-config.ts -> expectedApy)
-  const marketCfgForApy = getAllMarkets().find(m => m.question === marketQuestion)
-  const estimatedApy = typeof marketCfgForApy?.expectedApy === 'number' ? marketCfgForApy.expectedApy : 0.05
+  // Fixed APY for yield after deposit - no longer dynamic
+  const estimatedApy = 0.0451 // 4.51% APY
 
   // Get contract addresses using current chainId
   // const targetChainId = chainId || 1337 // Removed unused

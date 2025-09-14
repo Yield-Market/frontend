@@ -1044,43 +1044,8 @@ export function UserBalancesOverview() {
     return sorted
   }, [allConditions, filterBy, sortDirection, resolvedMap, volumeMap])
 
-  // Calculate mock APY based on total value
-  const [aaveApy, setAaveApy] = React.useState<string>('—')
-  React.useEffect(() => {
-    let cancelled = false
-    
-    const fetchAaveApy = async () => {
-      try {
-        const url = `https://api.allorigins.win/raw?url=${encodeURIComponent('https://yields.llama.fi/pools?chain=polygon&project=aave-v3&symbol=USDC')}`
-        const resp = await fetch(url, { cache: 'no-store' })
-        if (!resp.ok) throw new Error(`AAVE API error: ${resp.status}`)
-        
-        const json = await resp.json()
-        if (!cancelled) {
-          const pools = Array.isArray(json?.data) ? json.data : []
-          const match = pools.find((p: { symbol?: string; chain?: string; apy?: number }) => 
-            String(p.symbol).toUpperCase() === 'USDC' && 
-            String(p.chain).toLowerCase() === 'polygon'
-          )
-          const apy = typeof match?.apy === 'number' ? match.apy : null
-          setAaveApy(apy !== null ? `${apy.toFixed(2)}%` : '—')
-        }
-      } catch {
-        if (!cancelled) setAaveApy('—')
-      }
-    }
-    
-    // Fetch immediately
-    fetchAaveApy()
-    
-    // Then fetch every 5 minutes (APY changes slowly)
-    const interval = setInterval(fetchAaveApy, 300000)
-    
-    return () => { 
-      cancelled = true
-      clearInterval(interval)
-    }
-  }, [])
+  // Fixed AAVE APY - no longer query dynamically
+  const aaveApy = '4.51%'
 
   // Only show loading screen during global loading, not during individual token loading
   if (loading) {
