@@ -32,7 +32,7 @@ async function fetchMarketDirectly(args: { conditionIdLower?: string; slug?: str
 
     if (args.slug) {
       // Fetch by slug
-      url = `https://gamma-api.polymarket.com/markets/slug/${encodeURIComponent(args.slug)}`
+      url = `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://gamma-api.polymarket.com/markets/slug/${args.slug}`)}`
       resp = await fetch(url, { cache: 'no-store' })
       if (!resp.ok) throw new Error(`Polymarket API error: ${resp.status}`)
       
@@ -45,7 +45,7 @@ async function fetchMarketDirectly(args: { conditionIdLower?: string; slug?: str
       }
     } else {
       // Fetch by condition ID
-      const listUrl = `https://gamma-api.polymarket.com/markets?limit=1000&active=true&closed=false`
+      const listUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent('https://gamma-api.polymarket.com/markets?limit=1000&active=true&closed=false')}`
       resp = await fetch(listUrl, { cache: 'no-store' })
       if (!resp.ok) throw new Error(`Polymarket API error: ${resp.status}`)
       
@@ -90,7 +90,7 @@ function parseOutcomePrices(entry?: { outcomePrices?: string }): { yes?: number;
 //   return {}
 // }
 
-export function usePolymarketData(conditionIdOrSlug?: string, refreshMs: number = 10000, useSlug: boolean = false): MarketLiveData {
+export function usePolymarketData(conditionIdOrSlug?: string, refreshMs: number = 60000, useSlug: boolean = false): MarketLiveData {
   const [state, setState] = useState<MarketLiveData>({ volume: undefined, yesPrice: undefined, noPrice: undefined, loading: !!conditionIdOrSlug })
   const key = (conditionIdOrSlug || '').toLowerCase()
   const timerRef = useRef<number | null>(null)

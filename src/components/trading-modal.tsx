@@ -60,7 +60,7 @@ export function TradingModal({
   // Get real odds from contract (fallback) - removed unused variables
   const { loading: oddsLoading } = useMarketOdds(conditionId)
   // Get Polymarket outcome prices as primary source
-  const { yesPrice, noPrice, loading: pmLoading } = usePolymarketData(conditionId, 10000)
+  const { yesPrice, noPrice, loading: pmLoading } = usePolymarketData(conditionId, 60000)
   const selectedPrice = selectedOutcome === 'YES' ? yesPrice : noPrice
   const displayOdds = selectedPrice && selectedPrice > 0 ? (1 / selectedPrice) : 0
   // Expected APY for yield after deposit (can be overridden per-market via markets-config.ts -> expectedApy)
@@ -242,7 +242,7 @@ export function TradingModal({
         const b = await readBestPositionBalance()
         if (b !== undefined) setUserBalance(formatBalance(formatUnits(b as bigint, 6)))
       }
-    }, 10000) // Refresh every 10 seconds
+    }, 60000) // Refresh every 1 minute
 
     return () => clearInterval(refreshInterval)
   }, [isConnected, address, paymentAsset, refetchUsdcBalance, readBestPositionBalance])
@@ -687,7 +687,9 @@ export function TradingModal({
             try {
               if (!(chainId === 137 || chainId === 1337)) return []
               const ownerChecksum = address as `0x${string}`
-              const resp = await fetch(`https://safe-transaction-polygon.safe.global/api/v1/owners/${ownerChecksum}/safes/`, { cache: 'no-store' })
+              const resp = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(`https://safe-transaction-polygon.safe.global/api/v1/owners/${ownerChecksum}/safes/`)}`, { 
+                cache: 'no-store'
+              })
               if (!resp.ok) return []
               const json = await resp.json()
               return Array.isArray(json?.safes) ? json.safes : []

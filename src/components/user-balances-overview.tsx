@@ -242,7 +242,7 @@ function ConditionCard({ condition, onTradeClick, preloadedResolved, loadingOutc
   // YES/NO current prices from Polymarket: prefer slug from config if available
   const marketFromCfg = getAllMarkets().find(m => m.conditionId?.toLowerCase?.() === condition.conditionId.toLowerCase())
   const slugForPM = marketFromCfg?.slug
-  const { yesPrice, noPrice, volume: pmVolume } = usePolymarketData(slugForPM || condition.conditionId, 10000, !!slugForPM)
+  const { yesPrice, noPrice, volume: pmVolume } = usePolymarketData(slugForPM || condition.conditionId, 60000, !!slugForPM)
   const { isResolved, vaultAddress } = useVaultResolution(condition.conditionId)
   const { writeContractAsync } = useWriteContract()
   const publicClient = usePublicClient()
@@ -826,7 +826,7 @@ export function UserBalancesOverview() {
       }
     }
     fetchTotal()
-    const id = setInterval(fetchTotal, 10000)
+    const id = setInterval(fetchTotal, 60000)
     return () => { cancelled = true; clearInterval(id) }
   }, [markets, publicClient])
 
@@ -891,7 +891,9 @@ export function UserBalancesOverview() {
     let cancelled = false
     ;(async () => {
       try {
-        const resp = await fetch('https://gamma-api.polymarket.com/markets?limit=2000&active=true', { cache: 'no-store' })
+        const resp = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent('https://gamma-api.polymarket.com/markets?limit=2000&active=true')}`, { 
+          cache: 'no-store'
+        })
         const list = await resp.json()
         const m: Record<string, number> = {}
         if (Array.isArray(list)) {
@@ -1046,9 +1048,10 @@ export function UserBalancesOverview() {
   const [aaveApy, setAaveApy] = React.useState<string>('—')
   React.useEffect(() => {
     let cancelled = false
-    ;(async () => {
+    
+    const fetchAaveApy = async () => {
       try {
-        const url = `https://yields.llama.fi/pools?chain=polygon&project=aave-v3&symbol=USDC`
+        const url = `https://api.allorigins.win/raw?url=${encodeURIComponent('https://yields.llama.fi/pools?chain=polygon&project=aave-v3&symbol=USDC')}`
         const resp = await fetch(url, { cache: 'no-store' })
         if (!resp.ok) throw new Error(`AAVE API error: ${resp.status}`)
         
@@ -1065,8 +1068,18 @@ export function UserBalancesOverview() {
       } catch {
         if (!cancelled) setAaveApy('—')
       }
-    })()
-    return () => { cancelled = true }
+    }
+    
+    // Fetch immediately
+    fetchAaveApy()
+    
+    // Then fetch every 5 minutes (APY changes slowly)
+    const interval = setInterval(fetchAaveApy, 300000)
+    
+    return () => { 
+      cancelled = true
+      clearInterval(interval)
+    }
   }, [])
 
   // Only show loading screen during global loading, not during individual token loading

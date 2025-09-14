@@ -39,7 +39,7 @@ export class SafeAddressCache {
 
       const ownerChecksum = owner as `0x${string}`
       const resp = await fetch(
-        `https://safe-transaction-polygon.safe.global/api/v1/owners/${ownerChecksum}/safes/`, 
+        `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://safe-transaction-polygon.safe.global/api/v1/owners/${ownerChecksum}/safes/`)}`, 
         { cache: 'no-store' }
       )
       
