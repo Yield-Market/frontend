@@ -56,6 +56,7 @@ export function TradingModal({
   const [tradeError, setTradeError] = useState<string | null>(null)
   // const [bestHolder, setBestHolder] = useState<string | null>(null) // Removed unused
   const [bestPositionBal, setBestPositionBal] = useState<bigint | undefined>(undefined)
+  const [lastBalanceQuery, setLastBalanceQuery] = useState<number>(0)
 
   // Get real odds from contract (fallback) - removed unused variables
   const { loading: oddsLoading } = useMarketOdds(conditionId)
@@ -156,11 +157,19 @@ export function TradingModal({
     } finally {
       setIsYmBalanceLoading(false)
     }
-  }, [publicClient, vaultAddress, positionId, chainId, address, selectedOutcome])
+  }, [publicClient, vaultAddress, chainId, address, selectedOutcome, fetchSafesForOwner]) // Removed positionId dependency
 
   // Helper: read best balance across EOA + safes for current positionId from conditional tokens
   const readBestPositionBalance = useCallback(async (): Promise<bigint | undefined> => {
     try {
+      // Add debouncing to prevent too frequent queries
+      const now = Date.now()
+      if (now - lastBalanceQuery < 5000) { // 5 seconds debounce
+        console.log('[TM][CTBalance] Debounced query, too soon')
+        return bestPositionBal
+      }
+      setLastBalanceQuery(now)
+
       setIsBalanceLoading(true)
 
       if (!publicClient || !positionId) {
@@ -203,7 +212,7 @@ export function TradingModal({
     } finally {
       setIsBalanceLoading(false)
     }
-  }, [publicClient, positionId, address, fetchSafesForOwner])
+  }, [publicClient, positionId, address, fetchSafesForOwner, conditionalTokensAddress, lastBalanceQuery, bestPositionBal]) // Added missing dependencies
 
   // Format balance display, limit decimal places
   const formatBalance = (balance: string | number): string => {
@@ -228,24 +237,28 @@ export function TradingModal({
     }
   }, [paymentAsset, usdcBalance, bestPositionBal, isBalanceLoading])
 
-  // Periodic balance refresh - refresh every 10 seconds
+  // Periodic balance refresh - refresh every 2 minutes
   useEffect(() => {
-    if (!isConnected || !address) return
+    if (!isConnected || !address || !isOpen) return
 
     const refreshInterval = setInterval(async () => {
-      if (paymentAsset === 'USDC') {
-        const result = await refetchUsdcBalance()
-        if (result.data) {
-          setUserBalance(formatBalance(formatUnits(result.data, 6)))
+      try {
+        if (paymentAsset === 'USDC') {
+          const result = await refetchUsdcBalance()
+          if (result.data) {
+            setUserBalance(formatBalance(formatUnits(result.data, 6)))
+          }
+        } else if (paymentAsset === 'YES_TOKEN' || paymentAsset === 'NO_TOKEN') {
+          const b = await readBestPositionBalance()
+          if (b !== undefined) setUserBalance(formatBalance(formatUnits(b as bigint, 6)))
         }
-      } else if (paymentAsset === 'YES_TOKEN' || paymentAsset === 'NO_TOKEN') {
-        const b = await readBestPositionBalance()
-        if (b !== undefined) setUserBalance(formatBalance(formatUnits(b as bigint, 6)))
+      } catch (error) {
+        console.log('Balance refresh error:', error)
       }
-    }, 60000) // Refresh every 1 minute
+    }, 120000) // Refresh every 2 minutes
 
     return () => clearInterval(refreshInterval)
-  }, [isConnected, address, paymentAsset, refetchUsdcBalance, readBestPositionBalance])
+  }, [isConnected, address, paymentAsset, isOpen]) // Removed function dependencies
 
   // Function to deduct balance after transaction signature is sent
   const deductBalanceAfterSignature = (amount: string) => {
@@ -272,7 +285,7 @@ export function TradingModal({
         ])
       })()
     } catch {}
-  }, [isOpen, selectedOutcome, conditionId, positionId, vaultAddress, readBestPositionBalance, readYmBalance])
+  }, [isOpen, selectedOutcome, conditionId, positionId, vaultAddress]) // Removed function dependencies
 
   // Calculate expected payout using real odds
   const expectedPayout = inputAmount ? (parseFloat(inputAmount) * displayOdds).toFixed(2) : '0.00'
