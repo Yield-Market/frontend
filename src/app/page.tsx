@@ -5,7 +5,7 @@ import { UserBalancesOverview } from '@/components/user-balances-overview'
 import { MarketProvider, useMarket } from '@/contexts/market-context'
 
 function MarketContent() {
-  const { activeMarketSlug } = useMarket()
+  const { } = useMarket()
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-[#1a1a2e] dark:to-[#16213e]">

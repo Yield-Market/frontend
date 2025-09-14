@@ -16,7 +16,7 @@ interface MarketOdds {
   error?: string
 }
 
-export function useMarketOdds(conditionId?: string, _yesPositionId?: string, _noPositionId?: string): MarketOdds {
+export function useMarketOdds(conditionId?: string): MarketOdds {
   // Cache for previous data
   const [cachedData, setCachedData] = useState<{
     yesOdds: number

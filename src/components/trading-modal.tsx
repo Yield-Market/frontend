@@ -245,7 +245,7 @@ export function TradingModal({
     }, 10000) // Refresh every 10 seconds
 
     return () => clearInterval(refreshInterval)
-  }, [isConnected, address, paymentAsset, refetchUsdcBalance])
+  }, [isConnected, address, paymentAsset, refetchUsdcBalance, readBestPositionBalance])
 
   // Function to deduct balance after transaction signature is sent
   const deductBalanceAfterSignature = (amount: string) => {
@@ -272,7 +272,7 @@ export function TradingModal({
         ])
       })()
     } catch {}
-  }, [isOpen, selectedOutcome, conditionId, positionId, vaultAddress])
+  }, [isOpen, selectedOutcome, conditionId, positionId, vaultAddress, readBestPositionBalance, readYmBalance])
 
   // Calculate expected payout using real odds
   const expectedPayout = inputAmount ? (parseFloat(inputAmount) * displayOdds).toFixed(2) : '0.00'
@@ -310,7 +310,7 @@ export function TradingModal({
       setIsExecuting(false)
       setCompletionContext(null)
     }
-  }, [isOpen, isConnected, address, paymentAsset, refetchUsdcBalance])
+  }, [isOpen, isConnected, address, paymentAsset, refetchUsdcBalance, readBestPositionBalance])
 
   const handleMaxClick = () => {
     setInputAmount(userBalance)
@@ -330,7 +330,7 @@ export function TradingModal({
       const connector = okxConnector || connectors[0] // Use OKX if available, otherwise first available
 
       await connect({ connector })
-    } catch (error) {
+    } catch {
       // silent
       setTradeError('Failed to connect wallet')
     }
@@ -402,7 +402,7 @@ export function TradingModal({
         // If not on Polygon, use mock flow (placePolymarketOrder handles internally), no need to force chain switch
 
         // Track ERC1155 YES/NO token balance to detect fill
-        const vaultAddr = (marketCfg?.ymVaultAddress || '').toLowerCase()
+        // const vaultAddr = (marketCfg?.ymVaultAddress || '').toLowerCase() // Removed unused
         // const isBytes20 = /^0x[0-9a-fA-F]{40}$/.test(vaultAddr) // Removed unused
         // const isZero = vaultAddr === '0x0000000000000000000000000000000000000000' // Removed unused
         // const shouldDeposit = isBytes20 && !isZero // Removed unused
@@ -489,13 +489,10 @@ export function TradingModal({
               const allowBrowserEvent = String(process.env.NEXT_PUBLIC_PM_MOCK_BROWSER_EVENT || '').toLowerCase() === 'true'
               // If browser events are not enabled, don't error, keep waiting until external manual trigger of pm:OrderFill
               return await new Promise<void>((resolve) => {
-                const handler = (e: CustomEvent) => {
+                const handler = () => {
                   window.removeEventListener('pm:OrderFill', handler as EventListener)
                   try {
-                    // const oh = (e?.detail as Record<string, unknown>)?.orderHash // Removed unused
-                    // if (oh) {
-                    //   // silent
-                    // }
+                    // Order filled successfully
                   } catch {
                     // Ignore errors
                   }

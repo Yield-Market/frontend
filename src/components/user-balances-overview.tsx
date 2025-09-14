@@ -235,11 +235,7 @@ interface ConditionCardProps {
 
 function ConditionCard({ condition, onTradeClick, preloadedResolved, loadingOutcome }: ConditionCardProps) {
   // Get market odds from contract
-  const { } = useMarketOdds(
-    condition.conditionId,
-    condition.positions.find(p => p.outcomeLabel === 'YES')?.positionId,
-    condition.positions.find(p => p.outcomeLabel === 'NO')?.positionId
-  )
+  const { } = useMarketOdds(condition.conditionId)
 
   // Get market stats from YM: volume = idle + yielding (per requirement)
   const { volume, yielding, loading: statsLoading, error: statsError } = useMarketStats(condition.conditionId)
@@ -888,7 +884,7 @@ export function UserBalancesOverview() {
   // Sorting and filtering state
   // const [sortBy, setSortBy] = useState<'volume'>('volume') // Removed unused
   const [filterBy, setFilterBy] = useState<'all' | 'open' | 'resolved' | 'crypto' | 'political' | 'weather' | 'economics'>('all')
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
+  const [sortDirection] = useState<'asc' | 'desc'>('desc')
   const [volumeMap, setVolumeMap] = React.useState<Record<string, number>>({})
   // Fetch Polymarket volumes once to support volume sorting
   React.useEffect(() => {
@@ -943,7 +939,7 @@ export function UserBalancesOverview() {
   }
 
   // Handle trade confirmation
-  const handleConfirmTrade = async (_amount: string, _outcome: 'YES' | 'NO') => {
+  const handleConfirmTrade = async () => {
     // Parent no longer auto-closes; let modal control flow (including waiting for CLOB fill/deposit to Vault)
     setIsTransacting(true)
     try {
