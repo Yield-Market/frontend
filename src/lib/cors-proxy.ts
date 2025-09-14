@@ -120,7 +120,7 @@ export async function fetchPolymarketWithProxy(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<Response> {
-  const baseUrl = 'https://clob.polymarket.com'
+  const baseUrl = 'https://gamma-api.polymarket.com'
   const fullUrl = `${baseUrl}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`
   
   return fetchWithProxy(fullUrl, {
