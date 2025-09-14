@@ -51,10 +51,8 @@ export async function placePolymarketOrder(params: PlaceOrderParams) {
 
   const mockEnabled = POLYMARKET_CONFIG.MOCK_ENABLED
   const mockBrowserEvent = POLYMARKET_CONFIG.MOCK_BROWSER_EVENT
-  const isLocalChain = typeof window !== 'undefined' && (window as unknown as { ethereum?: { chainId?: string } })?.ethereum?.chainId === '0x539' // 1337
-
-  // Mock path for local testing: sign payload and emit a browser event "pm:OrderFill"
-  if (mockEnabled || isLocalChain || chainId !== 137) {
+  // Mock path for testing: sign payload and emit a browser event "pm:OrderFill"
+  if (mockEnabled || chainId !== 137) {
     const signer = await getBrowserSigner()
     const account = await signer.getAddress()
     const payload = {

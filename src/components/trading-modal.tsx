@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { useAccount, useWriteContract, useReadContract, useChainId, useConnect, usePublicClient } from 'wagmi'
 import { parseUnits, formatUnits, decodeEventLog } from 'viem'
 import { CONDITIONAL_TOKENS_ABI, YM_VAULT_ABI, CLOB_EXCHANGE_EVENTS_ABI, SAFE_ABI } from '@/lib/abis'
@@ -116,7 +116,7 @@ export function TradingModal({
   }
 
   // Helper: read ym vault balance for YES.Y tokens
-  const readYmBalance = async (): Promise<bigint | undefined> => {
+  const readYmBalance = useCallback(async (): Promise<bigint | undefined> => {
     try {
       setIsYmBalanceLoading(true)
 
@@ -156,10 +156,10 @@ export function TradingModal({
     } finally {
       setIsYmBalanceLoading(false)
     }
-  }
+  }, [publicClient, vaultAddress, positionId, chainId, address, selectedOutcome])
 
   // Helper: read best balance across EOA + safes for current positionId from conditional tokens
-  const readBestPositionBalance = async (): Promise<bigint | undefined> => {
+  const readBestPositionBalance = useCallback(async (): Promise<bigint | undefined> => {
     try {
       setIsBalanceLoading(true)
 
@@ -203,7 +203,7 @@ export function TradingModal({
     } finally {
       setIsBalanceLoading(false)
     }
-  }
+  }, [publicClient, positionId, address, fetchSafesForOwner])
 
   // Format balance display, limit decimal places
   const formatBalance = (balance: string | number): string => {
@@ -685,7 +685,7 @@ export function TradingModal({
           // Reuse best-balance detection for the active outcome
           const holders: string[] = [address || '', ...await (async () => {
             try {
-              if (!(chainId === 137 || chainId === 1337)) return []
+              if (chainId !== 137) return []
               const ownerChecksum = address as `0x${string}`
               const resp = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(`https://safe-transaction-polygon.safe.global/api/v1/owners/${ownerChecksum}/safes/`)}`, { 
                 cache: 'no-store'

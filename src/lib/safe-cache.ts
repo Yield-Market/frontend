@@ -32,8 +32,8 @@ export class SafeAddressCache {
     }
 
     try {
-      // Only query Polygon mainnet and local fork
-      if (chainId !== 137 && chainId !== 1337) {
+      // Only query Polygon mainnet
+      if (chainId !== 137) {
         return []
       }
 

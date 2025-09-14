@@ -6,29 +6,27 @@
 // Network Configuration
 export const NETWORK_CONFIG = {
   // Supported Chain IDs
-  SUPPORTED_CHAINS: [137, 80002, 1337], // Polygon Mainnet, Amoy Testnet, Localhost
+  SUPPORTED_CHAINS: [137, 80002], // Polygon Mainnet, Amoy Testnet
   
   // RPC URLs for each network
   RPC_URLS: {
-    137: process.env.NEXT_PUBLIC_POLYGON_RPC_URL || 'https://polygon-rpc.com',
+    137: process.env.NEXT_PUBLIC_POLYGON_RPC_URL || 'https://polygon-mainnet.g.alchemy.com/v2/_N_znMIMAmFWB4HOvD6xgdl_PSUfZSJU',
     80002: process.env.NEXT_PUBLIC_AMOY_RPC_URL || 'https://rpc-amoy.polygon.technology',
-    1337: process.env.NEXT_PUBLIC_RPC_URL || 'http://127.0.0.1:8545',
   },
   
   // Chain name mapping
   CHAIN_NAMES: {
     137: 'Polygon Mainnet',
     80002: 'Polygon Amoy',
-    1337: 'Localhost',
   },
   
-  // Default chain ID
-  DEFAULT_CHAIN_ID: parseInt(process.env.NEXT_PUBLIC_CHAIN_ID || '1337'),
+  // Default chain ID - Use Polygon Mainnet
+  DEFAULT_CHAIN_ID: parseInt(process.env.NEXT_PUBLIC_CHAIN_ID || '137'),
 } as const
 
 // Get RPC URL by chain ID
 export function getRpcUrl(chainId: number): string {
-  return NETWORK_CONFIG.RPC_URLS[chainId as keyof typeof NETWORK_CONFIG.RPC_URLS] || NETWORK_CONFIG.RPC_URLS[1337]
+  return NETWORK_CONFIG.RPC_URLS[chainId as keyof typeof NETWORK_CONFIG.RPC_URLS] || NETWORK_CONFIG.RPC_URLS[137]
 }
 
 // Get chain name by chain ID
@@ -52,12 +50,6 @@ export const CONTRACT_ADDRESSES = {
     AAVE_STRATEGY: process.env.NEXT_PUBLIC_AMOY_AAVE_STRATEGY_ADDRESS || '0x794a61358D6845594F94dc1DB02A252b5b4814aD',
   },
   
-  // Localhost (1337)
-  1337: {
-    USDC: process.env.NEXT_PUBLIC_LOCAL_USDC_ADDRESS || '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174',
-    CONDITIONAL_TOKENS: process.env.NEXT_PUBLIC_LOCAL_CONDITIONAL_TOKENS_ADDRESS || '0x4D97DCd97eC945f40cF65F87097ACe5EA0476045',
-    AAVE_STRATEGY: process.env.NEXT_PUBLIC_LOCAL_AAVE_STRATEGY_ADDRESS || '0x794a61358D6845594F94dc1DB02A252b5b4814aD',
-  },
   
   // Default Oracle Address (Development Environment)
   DEFAULT_ORACLE: process.env.NEXT_PUBLIC_DEFAULT_ORACLE_ADDRESS || '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
@@ -79,6 +71,18 @@ export function getContractAddress(chainId: number, contractName: keyof typeof C
   // Fallback to default address (Polygon Mainnet)
   return CONTRACT_ADDRESSES[137][contractName] || CONTRACT_ADDRESSES.ZERO_ADDRESS
 }
+
+// CORS Proxy Configuration
+export const CORS_PROXY_CONFIG = {
+  // CORS proxy service URL - hardcoded default value
+  PROXY_URL: process.env.NEXT_PUBLIC_CORS_PROXY_URL || 'https://cors-i1y9vf7h9-brandonxweb3-9280s-projects.vercel.app',
+
+  // Whether to enable CORS proxy
+  ENABLED: process.env.NEXT_PUBLIC_USE_CORS_PROXY !== 'false',
+
+  // Request timeout in milliseconds
+  TIMEOUT_MS: parseInt(process.env.NEXT_PUBLIC_CORS_TIMEOUT_MS || '30000'),
+} as const
 
 // Polymarket Configuration
 export const POLYMARKET_CONFIG = {

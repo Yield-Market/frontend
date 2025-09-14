@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { fetchPolymarketWithProxy } from '@/lib/cors-proxy'
 
 // interface PolymarketEntry {
 //   id: string
@@ -31,9 +32,9 @@ async function fetchMarketDirectly(args: { conditionIdLower?: string; slug?: str
     let resp: Response
 
     if (args.slug) {
-      // Fetch by slug
-      url = `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://gamma-api.polymarket.com/markets/slug/${args.slug}`)}`
-      resp = await fetch(url, { cache: 'no-store' })
+      // Fetch by slug using CORS proxy
+      url = `https://gamma-api.polymarket.com/markets/slug/${args.slug}`
+      resp = await fetchPolymarketWithProxy(url, { cache: 'no-store' })
       if (!resp.ok) throw new Error(`Polymarket API error: ${resp.status}`)
       
       const entry = await resp.json()
@@ -44,9 +45,9 @@ async function fetchMarketDirectly(args: { conditionIdLower?: string; slug?: str
         noPrice: no
       }
     } else {
-      // Fetch by condition ID
-      const listUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent('https://gamma-api.polymarket.com/markets?limit=1000&active=true&closed=false')}`
-      resp = await fetch(listUrl, { cache: 'no-store' })
+      // Fetch by condition ID using CORS proxy
+      const listUrl = 'https://gamma-api.polymarket.com/markets?limit=1000&active=true&closed=false'
+      resp = await fetchPolymarketWithProxy(listUrl, { cache: 'no-store' })
       if (!resp.ok) throw new Error(`Polymarket API error: ${resp.status}`)
       
       const arr = await resp.json()
