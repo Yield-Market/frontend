@@ -1048,10 +1048,18 @@ export function UserBalancesOverview() {
     let cancelled = false
     ;(async () => {
       try {
-        const resp = await fetch('/api/aave?symbol=USDC&chain=polygon', { cache: 'no-store' })
+        const url = `https://yields.llama.fi/pools?chain=polygon&project=aave-v3&symbol=USDC`
+        const resp = await fetch(url, { cache: 'no-store' })
+        if (!resp.ok) throw new Error(`AAVE API error: ${resp.status}`)
+        
         const json = await resp.json()
         if (!cancelled) {
-          const apy = typeof json?.apy === 'number' ? json.apy : null
+          const pools = Array.isArray(json?.data) ? json.data : []
+          const match = pools.find((p: { symbol?: string; chain?: string; apy?: number }) => 
+            String(p.symbol).toUpperCase() === 'USDC' && 
+            String(p.chain).toLowerCase() === 'polygon'
+          )
+          const apy = typeof match?.apy === 'number' ? match.apy : null
           setAaveApy(apy !== null ? `${apy.toFixed(2)}%` : '—')
         }
       } catch {

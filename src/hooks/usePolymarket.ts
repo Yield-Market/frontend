@@ -25,15 +25,56 @@ interface MarketLiveData {
 // Simple in-memory cache to avoid refetching same payloads too often
 const cacheByConditionId = new Map<string, { data: MarketLiveData; ts: number }>()
 
-async function fetchMarketViaProxy(args: { conditionIdLower?: string; slug?: string }): Promise<{ volume?: number; yes?: number; no?: number } | undefined> {
-  const qs = new URLSearchParams()
-  if (args.slug) qs.set('slug', args.slug)
-  if (args.conditionIdLower) qs.set('conditionId', args.conditionIdLower)
-  const url = `/api/polymarket?${qs.toString()}`
-  const resp = await fetch(url, { cache: 'no-store' })
-  if (!resp.ok) throw new Error(`Proxy error: ${resp.status}`)
-  const data = await resp.json()
-  return { volume: typeof data.volumeNum === 'number' ? data.volumeNum : undefined, yes: typeof data.yesPrice === 'number' ? data.yesPrice : undefined, no: typeof data.noPrice === 'number' ? data.noPrice : undefined }
+async function fetchMarketDirectly(args: { conditionIdLower?: string; slug?: string }): Promise<{ volume?: number; yesPrice?: number; noPrice?: number } | undefined> {
+  try {
+    let url: string
+    let resp: Response
+
+    if (args.slug) {
+      // Fetch by slug
+      url = `https://gamma-api.polymarket.com/markets/slug/${encodeURIComponent(args.slug)}`
+      resp = await fetch(url, { cache: 'no-store' })
+      if (!resp.ok) throw new Error(`Polymarket API error: ${resp.status}`)
+      
+      const entry = await resp.json()
+      const { yes, no } = parseOutcomePrices(entry)
+      return {
+        volume: typeof entry.volumeNum === 'number' ? entry.volumeNum : undefined,
+        yesPrice: yes,
+        noPrice: no
+      }
+    } else {
+      // Fetch by condition ID
+      const listUrl = `https://gamma-api.polymarket.com/markets?limit=1000&active=true&closed=false`
+      resp = await fetch(listUrl, { cache: 'no-store' })
+      if (!resp.ok) throw new Error(`Polymarket API error: ${resp.status}`)
+      
+      const arr = await resp.json()
+      const entry = arr.find((e: { conditionId?: string }) => (e.conditionId || '').toLowerCase() === args.conditionIdLower)
+      const { yes, no } = parseOutcomePrices(entry)
+      return {
+        volume: typeof entry?.volumeNum === 'number' ? entry.volumeNum : undefined,
+        yesPrice: yes,
+        noPrice: no
+      }
+    }
+  } catch (error) {
+    console.error('Failed to fetch Polymarket data:', error)
+    throw error
+  }
+}
+
+function parseOutcomePrices(entry?: { outcomePrices?: string }): { yes?: number; no?: number } {
+  if (!entry) return {}
+  try {
+    const arr = JSON.parse(entry.outcomePrices || '[]') as (string | number)[]
+    if (Array.isArray(arr) && arr.length >= 2) {
+      const yes = Number(arr[0])
+      const no = Number(arr[1])
+      if (!Number.isNaN(yes) && !Number.isNaN(no)) return { yes, no }
+    }
+  } catch {}
+  return {}
 }
 
 // function parseOutcomePrices(entry?: PolymarketEntry): { yes?: number; no?: number } {
@@ -75,11 +116,11 @@ export function usePolymarketData(conditionIdOrSlug?: string, refreshMs: number 
         if (!initializedRef.current) {
           setState(s => ({ ...s, loading: true }))
         }
-        const proxy = await fetchMarketViaProxy(useSlug ? { slug: key } : { conditionIdLower: key })
+        const proxy = await fetchMarketDirectly(useSlug ? { slug: key } : { conditionIdLower: key })
         const data: MarketLiveData = {
           volume: proxy?.volume,
-          yesPrice: proxy?.yes,
-          noPrice: proxy?.no,
+          yesPrice: proxy?.yesPrice,
+          noPrice: proxy?.noPrice,
           loading: false,
           updatedAt: Date.now()
         }
