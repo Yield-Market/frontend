@@ -6,7 +6,7 @@ import { MarketInfo, MarketCategory, MarketStatus } from '@/types'
 import { getMarketConfig } from '@/lib/markets-config'
 import { SafeAddressCache } from '@/lib/safe-cache'
 import { logger } from '@/lib/logger'
-import { CONTRACT_ADDRESSES } from '@/lib/config'
+import { getContractAddress } from '@/lib/config'
 
 export interface PositionBalance {
   positionId: string
@@ -125,8 +125,8 @@ export function useMarketBalances(marketId?: string): UserBalancesSummary {
   // Helper: read best holder balance across EOA and Safes for a given ERC1155 positionId
   async function readBestPositionBalance(positionId: string): Promise<{ holder?: string; balance: bigint }> {
     try {
-      // ConditionalTokens address on Polygon mainnet
-      const ctfAddress = CONTRACT_ADDRESSES.CONDITIONAL_TOKENS
+      // ConditionalTokens address on current chain
+      const ctfAddress = getContractAddress(chainId || 137, 'CONDITIONAL_TOKENS')
       if (!publicClient || !positionId) return { balance: 0n }
       const holders: string[] = [address || '', ...await fetchSafesForOwner(address)]
         .filter(Boolean)
@@ -137,7 +137,7 @@ export function useMarketBalances(marketId?: string): UserBalancesSummary {
             address: ctfAddress as `0x${string}`,
             abi: [
               { name: 'balanceOf', type: 'function', stateMutability: 'view', inputs: [ { name: 'account', type: 'address' }, { name: 'id', type: 'uint256' } ], outputs: [ { name: '', type: 'uint256' } ] }
-            ] as any,
+            ],
             functionName: 'balanceOf',
             args: [h as `0x${string}`, BigInt(positionId)]
           }) as unknown as bigint

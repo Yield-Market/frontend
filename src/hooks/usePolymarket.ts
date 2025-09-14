@@ -2,16 +2,16 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 
-interface PolymarketEntry {
-  id: string
-  question: string
-  conditionId: string
-  outcomes?: string
-  outcomePrices?: string
-  volumeNum?: number
-  volume24hr?: number
-  clobTokenIds?: string
-}
+// interface PolymarketEntry {
+//   id: string
+//   question: string
+//   conditionId: string
+//   outcomes?: string
+//   outcomePrices?: string
+//   volumeNum?: number
+//   volume24hr?: number
+//   clobTokenIds?: string
+// }
 
 interface MarketLiveData {
   volume: number | undefined
@@ -36,18 +36,18 @@ async function fetchMarketViaProxy(args: { conditionIdLower?: string; slug?: str
   return { volume: typeof data.volumeNum === 'number' ? data.volumeNum : undefined, yes: typeof data.yesPrice === 'number' ? data.yesPrice : undefined, no: typeof data.noPrice === 'number' ? data.noPrice : undefined }
 }
 
-function parseOutcomePrices(entry?: PolymarketEntry): { yes?: number; no?: number } {
-  if (!entry) return {}
-  try {
-    const arr = JSON.parse(entry.outcomePrices || '[]') as (string | number)[]
-    if (Array.isArray(arr) && arr.length >= 2) {
-      const yes = Number(arr[0])
-      const no = Number(arr[1])
-      if (!Number.isNaN(yes) && !Number.isNaN(no)) return { yes, no }
-    }
-  } catch {}
-  return {}
-}
+// function parseOutcomePrices(entry?: PolymarketEntry): { yes?: number; no?: number } {
+//   if (!entry) return {}
+//   try {
+//     const arr = JSON.parse(entry.outcomePrices || '[]') as (string | number)[]
+//     if (Array.isArray(arr) && arr.length >= 2) {
+//       const yes = Number(arr[0])
+//       const no = Number(arr[1])
+//       if (!Number.isNaN(yes) && !Number.isNaN(no)) return { yes, no }
+//     }
+//   } catch {}
+//   return {}
+// }
 
 export function usePolymarketData(conditionIdOrSlug?: string, refreshMs: number = 10000, useSlug: boolean = false): MarketLiveData {
   const [state, setState] = useState<MarketLiveData>({ volume: undefined, yesPrice: undefined, noPrice: undefined, loading: !!conditionIdOrSlug })

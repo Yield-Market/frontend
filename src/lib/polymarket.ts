@@ -1,6 +1,6 @@
 import { ClobClient, OrderType, Side, ApiKeyCreds } from '@polymarket/clob-client'
 import { ethers as Ethers } from 'ethers'
-import { logger } from '@/lib/logger'
+// import { logger } from '@/lib/logger' // Removed unused
 import { POLYMARKET_CONFIG } from '@/lib/config'
 
 /**
@@ -21,10 +21,10 @@ export interface PlaceOrderParams {
 }
 
 async function getBrowserSigner(): Promise<Ethers.Signer> {
-  if (typeof window === 'undefined' || !(window as any).ethereum) {
+  if (typeof window === 'undefined' || !(window as unknown as { ethereum?: unknown }).ethereum) {
     throw new Error('No wallet available. Please install or unlock a web3 wallet.')
   }
-  const provider = new Ethers.providers.Web3Provider((window as any).ethereum, 'any')
+  const provider = new Ethers.providers.Web3Provider((window as unknown as { ethereum: unknown }).ethereum as Ethers.providers.ExternalProvider, 'any')
   // Request accounts if needed
   await provider.send('eth_requestAccounts', [])
   return provider.getSigner()
@@ -32,7 +32,7 @@ async function getBrowserSigner(): Promise<Ethers.Signer> {
 
 export async function deriveApiKey(host: string, chainId: number): Promise<ApiKeyCreds> {
   const signer = await getBrowserSigner()
-  const client = new ClobClient(host, chainId as any, signer as any)
+  const client = new ClobClient(host, chainId, signer as unknown as Ethers.providers.JsonRpcSigner)
   return client.createOrDeriveApiKey()
 }
 
@@ -51,7 +51,7 @@ export async function placePolymarketOrder(params: PlaceOrderParams) {
 
   const mockEnabled = POLYMARKET_CONFIG.MOCK_ENABLED
   const mockBrowserEvent = POLYMARKET_CONFIG.MOCK_BROWSER_EVENT
-  const isLocalChain = typeof window !== 'undefined' && (window as any)?.ethereum?.chainId === '0x539' // 1337
+  const isLocalChain = typeof window !== 'undefined' && (window as unknown as { ethereum?: { chainId?: string } })?.ethereum?.chainId === '0x539' // 1337
 
   // Mock path for local testing: sign payload and emit a browser event "pm:OrderFill"
   if (mockEnabled || isLocalChain || chainId !== 137) {
@@ -68,8 +68,8 @@ export async function placePolymarketOrder(params: PlaceOrderParams) {
       account,
       ts: Date.now()
     }
-    const signature = await (signer as any)._signTypedData?.({}, {}, payload).catch(async () => {
-      return await (signer as any).signMessage?.(JSON.stringify(payload))
+    const signature = await (signer as unknown as { _signTypedData?: (domain: unknown, types: unknown, value: unknown) => Promise<string> })._signTypedData?.({}, {}, payload).catch(async () => {
+      return await (signer as unknown as { signMessage?: (message: string) => Promise<string> }).signMessage?.(JSON.stringify(payload))
     })
     // Derive a pseudo orderHash for local debugging
     let orderHash: string | undefined
@@ -92,21 +92,44 @@ export async function placePolymarketOrder(params: PlaceOrderParams) {
 
   // Real CLOB flow
   const signer = await getBrowserSigner()
-  const client = new ClobClient(host, chainId as any, signer as any)
+  const client = new ClobClient(host, chainId, signer as unknown as Ethers.providers.JsonRpcSigner)
   const creds = await client.createOrDeriveApiKey()
 
   const signatureType = 0 // 0 = Browser wallet (Metamask, Coinbase wallet, etc.)
-  const clob = new ClobClient(host, chainId as any, signer as any, await creds, signatureType, funder)
+  const clob = new ClobClient(host, chainId, signer as unknown as Ethers.providers.JsonRpcSigner, await creds, signatureType, funder)
 
-  const resp = await clob.createAndPostOrder(
+  interface OrderRequest {
+    tokenID: string
+    price: number
+    side: number
+    size: number
+    feeRateBps: number
+    nonce: number
+    expiration: number
+  }
+  
+  interface OrderOptions {
+    tickSize: string
+    negRisk: boolean
+  }
+  
+  interface OrderResponse {
+    orderID: string
+    [key: string]: unknown
+  }
+  
+  const resp = await (clob as unknown as { createAndPostOrder: (order: OrderRequest, options: OrderOptions, orderType: number) => Promise<OrderResponse> }).createAndPostOrder(
     {
       tokenID: tokenId,
       price,
-      side: side === 'BUY' ? (Side as any).BUY : (Side as any).SELL,
-      size
+      side: side === 'BUY' ? Number(Side.BUY) : Number(Side.SELL),
+      size,
+      feeRateBps: 0,
+      nonce: Date.now(),
+      expiration: Math.floor(Date.now() / 1000) + 86400 // 24 hours from now
     },
-    { tickSize: tickSize as any, negRisk },
-    OrderType.GTC
+    { tickSize, negRisk },
+    Number(OrderType.GTC)
   )
 
   return resp

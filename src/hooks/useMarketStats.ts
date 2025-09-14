@@ -1,6 +1,6 @@
 'use client'
 
-import { useReadContract, useChainId } from 'wagmi'
+import { useReadContract } from 'wagmi'
 import { formatUnits } from 'viem'
 import { useState, useEffect } from 'react'
 import { YM_VAULT_ABI } from '@/lib/abis'
@@ -22,15 +22,13 @@ export function useMarketStats(conditionId?: string): MarketStats {
     yielding: number
     idle: number
   }>({ volume: 0, yielding: 0, idle: 0 })
-  const chainId = useChainId()
+  // const chainId = useChainId() // Removed unused
   
   // Get contract addresses
-  const targetChainId = chainId || 31337 // Use 31337 as default for local development
-  let ymVaultAddress: string
-  
+  // const targetChainId = chainId || 31337 // Use 31337 as default for local development
   // Read from markets-config instead of global vault
   const marketFromCfg = getAllMarkets().find(m => m.conditionId?.toLowerCase?.() === (conditionId || '').toLowerCase())
-  ymVaultAddress = marketFromCfg?.ymVaultAddress || '0x0000000000000000000000000000000000000000'
+  const ymVaultAddress = marketFromCfg?.ymVaultAddress || '0x0000000000000000000000000000000000000000'
 
   // Query YM Vault totalMatched (actual matched USDC amount)
   const { data: totalMatched, error: matchedError, isLoading: matchedLoading } = useReadContract({

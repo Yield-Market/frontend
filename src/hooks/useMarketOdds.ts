@@ -1,6 +1,6 @@
 'use client'
 
-import { useReadContract, useChainId } from 'wagmi'
+import { useReadContract } from 'wagmi'
 import { formatUnits } from 'viem'
 import { useState, useEffect } from 'react'
 import { YM_VAULT_ABI } from '@/lib/abis'
@@ -16,7 +16,7 @@ interface MarketOdds {
   error?: string
 }
 
-export function useMarketOdds(conditionId?: string, yesPositionId?: string, noPositionId?: string): MarketOdds {
+export function useMarketOdds(conditionId?: string, _yesPositionId?: string, _noPositionId?: string): MarketOdds {
   // Cache for previous data
   const [cachedData, setCachedData] = useState<{
     yesOdds: number
@@ -29,15 +29,13 @@ export function useMarketOdds(conditionId?: string, yesPositionId?: string, noPo
     yesPrice: 0.5,
     noPrice: 0.5
   })
-  const chainId = useChainId()
+  // const chainId = useChainId() // Removed unused
   
   // Get contract addresses
-  const targetChainId = chainId || 31337 // Use 31337 as default for local development
-  let ymVaultAddress: string
-  
+  // const targetChainId = chainId || 31337 // Use 31337 as default for local development
   // Read from markets-config instead of global vault
   const marketFromCfg = getAllMarkets().find(m => m.conditionId?.toLowerCase?.() === (conditionId || '').toLowerCase())
-  ymVaultAddress = marketFromCfg?.ymVaultAddress || '0x0000000000000000000000000000000000000000'
+  const ymVaultAddress = marketFromCfg?.ymVaultAddress || '0x0000000000000000000000000000000000000000'
 
   // Query total deposits from YM Vault
   const { data: totalYesDeposits, error: yesError, isLoading: yesLoading } = useReadContract({

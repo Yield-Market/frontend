@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { useAccount, useWriteContract, useReadContract, useChainId, useConnect, useWaitForTransactionReceipt, usePublicClient } from 'wagmi'
+import { useAccount, useWriteContract, useReadContract, useChainId, useConnect, usePublicClient } from 'wagmi'
 import { parseUnits, formatUnits, decodeEventLog } from 'viem'
 import { CONDITIONAL_TOKENS_ABI, YM_VAULT_ABI, CLOB_EXCHANGE_EVENTS_ABI, SAFE_ABI } from '@/lib/abis'
 // contracts.ts removed; all addresses come from markets-config.ts or hooks
@@ -12,7 +12,7 @@ import { getAllMarkets } from '@/lib/markets-config'
 import { useVaultResolution } from '@/hooks/useVaultResolution'
 import { SafeAddressCache } from '@/lib/safe-cache'
 import { logger } from '@/lib/logger'
-import { CONTRACT_ADDRESSES, POLYMARKET_CONFIG } from '@/lib/config'
+// Removed unused imports
 
 interface TradingModalProps {
   isOpen: boolean
@@ -31,7 +31,7 @@ export function TradingModal({
   onClose,
   marketQuestion,
   selectedOutcome,
-  currentOdds,
+  // currentOdds, // Removed unused prop
   onConfirmTrade,
   isTransacting = false,
   conditionId,
@@ -40,7 +40,7 @@ export function TradingModal({
   const { address, isConnected } = useAccount()
   const publicClient = usePublicClient()
   const chainId = useChainId()
-  const { writeContract, writeContractAsync, isPending } = useWriteContract()
+  const { writeContractAsync } = useWriteContract()
   const { connect, connectors } = useConnect()
   const [inputAmount, setInputAmount] = useState('')
   const [userBalance, setUserBalance] = useState('0.00')
@@ -54,30 +54,29 @@ export function TradingModal({
   const [tradeStep, setTradeStep] = useState<'idle' | 'buying' | 'transferring' | 'completed' | 'error'>('idle')
   const [completionContext, setCompletionContext] = useState<'order' | 'deposit' | 'withdraw' | null>(null)
   const [tradeError, setTradeError] = useState<string | null>(null)
-  const [bestHolder, setBestHolder] = useState<string | null>(null)
+  // const [bestHolder, setBestHolder] = useState<string | null>(null) // Removed unused
   const [bestPositionBal, setBestPositionBal] = useState<bigint | undefined>(undefined)
 
-  // Get real odds from contract (fallback)
-  const { yesOdds, noOdds, loading: oddsLoading } = useMarketOdds(conditionId)
+  // Get real odds from contract (fallback) - removed unused variables
+  const { loading: oddsLoading } = useMarketOdds(conditionId)
   // Get Polymarket outcome prices as primary source
   const { yesPrice, noPrice, loading: pmLoading } = usePolymarketData(conditionId, 10000)
   const selectedPrice = selectedOutcome === 'YES' ? yesPrice : noPrice
-  const displayOdds = selectedPrice && selectedPrice > 0 ? (1 / selectedPrice) : (selectedOutcome === 'YES' ? yesOdds : noOdds)
+  const displayOdds = selectedPrice && selectedPrice > 0 ? (1 / selectedPrice) : 0
   // Expected APY for yield after deposit (can be overridden per-market via markets-config.ts -> expectedApy)
-  const marketCfgForApy = getAllMarkets().find(m => m.question === marketQuestion) as any
+  const marketCfgForApy = getAllMarkets().find(m => m.question === marketQuestion)
   const estimatedApy = typeof marketCfgForApy?.expectedApy === 'number' ? marketCfgForApy.expectedApy : 0.05
 
   // Get contract addresses using current chainId
-  const targetChainId = chainId || 1337
+  // const targetChainId = chainId || 1337 // Removed unused
   const marketCfgAll = getAllMarkets()
   const marketCfg = (conditionId
     ? marketCfgAll.find(m => (m.conditionId?.toLowerCase?.() === (conditionId as string).toLowerCase()))
     : marketCfgAll.find(m => m.question === marketQuestion))
   // For demo/local, allow using known polygon token addresses; ideally should come from config per chain
-  const conditionalTokensAddress = (marketCfg as any)?.conditionalTokens || '0x4D97DCd97eC945f40cF65F87097ACe5EA0476045'
+  const conditionalTokensAddress = '0x4D97DCd97eC945f40cF65F87097ACe5EA0476045'
   const mockUSDCAddress = marketCfg?.collateralToken || '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174'
   const { isResolved, yesWon, finalPayoutRatio, vaultAddress } = useVaultResolution(conditionId)
-  // eslint-disable-next-line no-console
   logger.debug('TradingModal initialized', { isResolved, vaultAddress, conditionId })
   useEffect(() => {
     // silent init
@@ -87,7 +86,7 @@ export function TradingModal({
   }, [conditionId, vaultAddress, isResolved, yesWon, finalPayoutRatio])
 
   // Query user USDC balance
-  const { data: usdcBalance, error: usdcError, isLoading: usdcLoading, refetch: refetchUsdcBalance } = useReadContract({
+  const { data: usdcBalance, refetch: refetchUsdcBalance } = useReadContract({
     address: mockUSDCAddress as `0x${string}`,
     abi: [
       {
@@ -140,22 +139,18 @@ export function TradingModal({
             args: [h as `0x${string}`]
           }) as unknown as bigint
 
-          // eslint-disable-next-line no-console
           console.log('[TM][YMBalance] holder', h, 'vaultAddress', vaultAddress, 'outcome', selectedOutcome, 'balance', balance.toString())
 
           if (balance > best.b) best = { h, b: balance }
         } catch (e) {
-          // eslint-disable-next-line no-console
           console.log('[TM][YMBalance] Error querying holder', h, ':', e)
         }
       }
 
       setYmBalance(formatBalance(formatUnits(best.b, 6)))
-      // eslint-disable-next-line no-console
       console.log('[TM][BestYMBalance] vaultAddress', vaultAddress, 'bestHolder', best.h, 'balance', best.b.toString())
       return best.b
     } catch (e) {
-      // eslint-disable-next-line no-console
       console.log('[TM][YMBalance] Error:', e)
       return undefined
     } finally {
@@ -169,7 +164,6 @@ export function TradingModal({
       setIsBalanceLoading(true)
 
       if (!publicClient || !positionId) {
-        setBestHolder(null)
         setBestPositionBal(0n)
         setUserBalance('0.00')
         return 0n
@@ -189,25 +183,21 @@ export function TradingModal({
             args: [h as `0x${string}`, BigInt(positionId)]
           }) as unknown as bigint
 
-          // eslint-disable-next-line no-console
           console.log('[TM][CTBalance] holder', h, 'positionId', positionId, 'balance', b.toString())
 
           if (b > best.b) best = { h, b }
         } catch (e) {
-          // eslint-disable-next-line no-console
           console.log('[TM][CTBalance] Error querying holder', h, ':', e)
         }
       }
 
-      setBestHolder(best.h || null)
+      // setBestHolder(best.h || null) // Removed unused
       setBestPositionBal(best.b)
       // Manually update balance display
       setUserBalance(formatBalance(formatUnits(best.b, 6)))
-      // eslint-disable-next-line no-console
       console.log('[TM][BestCTBalance] positionId', positionId, 'bestHolder', best.h, 'balance', best.b.toString())
       return best.b
     } catch (e) {
-      // eslint-disable-next-line no-console
       console.log('[TM][CTBalance] Error:', e)
       return undefined
     } finally {
@@ -368,13 +358,13 @@ export function TradingModal({
       if (!e) return 'Unknown error'
       if (e instanceof Error) return e.message
       try {
-        const anyE = e as any
+        const errorObj = e as Record<string, unknown>
         return (
-          anyE?.shortMessage ||
-          anyE?.message ||
-          anyE?.cause?.shortMessage ||
-          anyE?.cause?.message ||
-          JSON.stringify(anyE)
+          (errorObj?.shortMessage as string) ||
+          (errorObj?.message as string) ||
+          ((errorObj?.cause as Record<string, unknown>)?.shortMessage as string) ||
+          ((errorObj?.cause as Record<string, unknown>)?.message as string) ||
+          JSON.stringify(errorObj)
         )
       } catch {
         return String(e)
@@ -413,9 +403,9 @@ export function TradingModal({
 
         // Track ERC1155 YES/NO token balance to detect fill
         const vaultAddr = (marketCfg?.ymVaultAddress || '').toLowerCase()
-        const isBytes20 = /^0x[0-9a-fA-F]{40}$/.test(vaultAddr)
-        const isZero = vaultAddr === '0x0000000000000000000000000000000000000000'
-        const shouldDeposit = isBytes20 && !isZero
+        // const isBytes20 = /^0x[0-9a-fA-F]{40}$/.test(vaultAddr) // Removed unused
+        // const isZero = vaultAddr === '0x0000000000000000000000000000000000000000' // Removed unused
+        // const shouldDeposit = isBytes20 && !isZero // Removed unused
 
         let positionIdBig: bigint | undefined
         let balanceBefore: bigint | undefined
@@ -442,7 +432,7 @@ export function TradingModal({
         }
 
         try {
-          const orderResp: any = await placePolymarketOrder({
+          await placePolymarketOrder({
             tokenId,
             price: limitPrice,
             size,
@@ -472,17 +462,25 @@ export function TradingModal({
                       fromBlock: from,
                       toBlock: 'latest'
                     })
-                    for (const l of (logs as any[])) {
+                    for (const l of logs) {
                       const topics: string[] = (l.topics || []) as string[]
                       if (!topics.includes(fillTopic)) continue
                       try {
-                        const decoded = decodeEventLog({ abi: CLOB_EXCHANGE_EVENTS_ABI as any, data: l.data as `0x${string}`, topics: topics as any, eventName: 'OrderFilled' }) as any
-                        // eslint-disable-next-line no-console
+                        decodeEventLog({ 
+                          abi: CLOB_EXCHANGE_EVENTS_ABI, 
+                          data: l.data as `0x${string}`, 
+                          topics: topics as [`0x${string}`, ...`0x${string}`[]], 
+                          eventName: 'OrderFilled' 
+                        })
                         // silent
-                      } catch {}
+                      } catch {
+                    // Ignore errors
+                  }
                       return
                     }
-                  } catch {}
+                  } catch {
+                    // Ignore errors
+                  }
                   await sleep(800)
                 }
                 throw new Error('Timed out waiting for local OrderFill')
@@ -491,22 +489,22 @@ export function TradingModal({
               const allowBrowserEvent = String(process.env.NEXT_PUBLIC_PM_MOCK_BROWSER_EVENT || '').toLowerCase() === 'true'
               // If browser events are not enabled, don't error, keep waiting until external manual trigger of pm:OrderFill
               return await new Promise<void>((resolve) => {
-                const handler = (e: any) => {
-                  window.removeEventListener('pm:OrderFill', handler as any)
+                const handler = (e: CustomEvent) => {
+                  window.removeEventListener('pm:OrderFill', handler as EventListener)
                   try {
-                    const oh = e?.detail?.orderHash
-                    if (oh) {
-                      // eslint-disable-next-line no-console
-                      // silent
-                    }
-                  } catch {}
+                    // const oh = (e?.detail as Record<string, unknown>)?.orderHash // Removed unused
+                    // if (oh) {
+                    //   // silent
+                    // }
+                  } catch {
+                    // Ignore errors
+                  }
                   resolve()
                 }
-                window.addEventListener('pm:OrderFill', handler as any, { once: true })
+                window.addEventListener('pm:OrderFill', handler as EventListener, { once: true })
                 if (allowBrowserEvent) {
                   // If browser events are allowed, keep a timeout hint but don't reject to maintain "waiting" state
                   setTimeout(() => {
-                    // eslint-disable-next-line no-console
                     // silent
                   }, timeoutMs)
                 }
@@ -517,7 +515,6 @@ export function TradingModal({
               if (!positionIdBig) return
               const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
               // loop until balance increases
-              // eslint-disable-next-line no-constant-condition
               while (true) {
                 try {
                   const bal: bigint = await publicClient!.readContract({
@@ -551,7 +548,6 @@ export function TradingModal({
               const waitForBalanceIncrease = async () => {
                 if (!positionIdBig) return
                 const sleep2 = (ms: number) => new Promise(r => setTimeout(r, ms))
-                // eslint-disable-next-line no-constant-condition
                 while (true) {
                   try {
                     const bal: bigint = await publicClient!.readContract({
@@ -562,7 +558,9 @@ export function TradingModal({
                     })
                     if (bal > 0n) return
                     if (balanceBefore !== undefined && bal > (balanceBefore as bigint)) return
-                  } catch {}
+                  } catch {
+                    // Ignore errors
+                  }
                   await sleep2(5000)
                 }
               }
@@ -574,14 +572,20 @@ export function TradingModal({
                     toBlock: 'latest'
                   })
                   let filled = false
-                  for (const l of (logs as any[])) {
+                  for (const l of logs) {
                     try {
-                      const decoded = decodeEventLog({ abi: CLOB_EXCHANGE_EVENTS_ABI as any, data: l.data as `0x${string}`, topics: (l.topics || []) as any, eventName: 'OrderFilled' }) as any
-                      // eslint-disable-next-line no-console
+                      decodeEventLog({ 
+                        abi: CLOB_EXCHANGE_EVENTS_ABI, 
+                        data: l.data as `0x${string}`, 
+                        topics: (l.topics || []) as [`0x${string}`, ...`0x${string}`[]], 
+                        eventName: 'OrderFilled' 
+                      })
                       // silent
                       filled = true
                       break
-                    } catch {}
+                    } catch {
+                    // Ignore errors
+                  }
                   }
                   if (filled) break
                 } catch {}
@@ -771,7 +775,7 @@ export function TradingModal({
           } else {
             // SAFE path (threshold=1 owner pre-validated): build execTransaction and use pre-validated signature
             const data = (await import('viem')).encodeFunctionData({
-              abi: CONDITIONAL_TOKENS_ABI as any,
+              abi: CONDITIONAL_TOKENS_ABI,
               functionName: 'safeTransferFrom',
               args: [fromHolder, toVault, BigInt(positionId), transferAmount, '0x']
             }) as `0x${string}`
@@ -1133,7 +1137,9 @@ export function TradingModal({
                        const safeTotal = (safeYesY ?? 0n) + (safeNoY ?? 0n)
                        console.log('[Withdraw][SafeBalance] Safe address:', safeAddr, 'YES.Y balance:', String(safeYesY ?? 0n), 'NO.Y balance:', String(safeNoY ?? 0n), 'Total balance:', String(safeTotal))
                        if (safeTotal > bestSafe.balance) bestSafe = { address: safeAddr, balance: safeTotal }
-                     } catch {}
+                     } catch {
+                    // Ignore errors
+                  }
                    }
 
                    if (!bestSafe.address || bestSafe.balance === 0n) {
@@ -1144,7 +1150,7 @@ export function TradingModal({
                    console.log('[Withdraw][SafeExecute] Selected Safe address:', bestSafe.address, 'Balance:', String(bestSafe.balance), 'Withdraw to user address:', address)
 
                    const { encodeFunctionData, padHex } = await import('viem')
-                   const data = encodeFunctionData({ abi: YM_VAULT_ABI as any, functionName: 'withdraw', args: [address as `0x${string}`] }) as `0x${string}`
+                   const data = encodeFunctionData({ abi: YM_VAULT_ABI, functionName: 'withdraw', args: [address as `0x${string}`] }) as `0x${string}`
 
                    // Check threshold == 1
                    try {
@@ -1184,7 +1190,6 @@ export function TradingModal({
               } catch (e) {
                 setTradeStep('error')
                 setTradeError(e instanceof Error ? e.message : 'Withdraw failed')
-                // eslint-disable-next-line no-console
                 console.error('[Withdraw][Error]', e)
               } finally {
                 setIsExecuting(false)

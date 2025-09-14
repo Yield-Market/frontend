@@ -22,39 +22,39 @@ class Logger {
     return true
   }
 
-  debug(message: string, ...args: any[]): void {
+  debug(message: string, ...args: unknown[]): void {
     if (this.shouldLog('debug')) {
       console.log(`[DEBUG] ${message}`, ...args)
     }
   }
 
-  info(message: string, ...args: any[]): void {
+  info(message: string, ...args: unknown[]): void {
     if (this.shouldLog('info')) {
       console.log(`[INFO] ${message}`, ...args)
     }
   }
 
-  warn(message: string, ...args: any[]): void {
+  warn(message: string, ...args: unknown[]): void {
     if (this.shouldLog('warn')) {
       console.warn(`[WARN] ${message}`, ...args)
     }
   }
 
-  error(message: string, ...args: any[]): void {
+  error(message: string, ...args: unknown[]): void {
     if (this.shouldLog('error')) {
       console.error(`[ERROR] ${message}`, ...args)
     }
   }
 
   // Transaction-related logs (more sensitive, only shown in development environment)
-  transaction(message: string, ...args: any[]): void {
+  transaction(message: string, ...args: unknown[]): void {
     if (this.isDevelopment) {
       console.log(`[TX] ${message}`, ...args)
     }
   }
 
   // Balance query-related logs (contains user addresses, needs caution)
-  balance(message: string, ...args: any[]): void {
+  balance(message: string, ...args: unknown[]): void {
     if (this.isDevelopment) {
       console.log(`[BALANCE] ${message}`, ...args)
     }

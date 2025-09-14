@@ -16,7 +16,7 @@ export async function GET(req: Request) {
     const json = await resp.json()
     const pools = Array.isArray(json?.data) ? json.data : []
     // Prefer stablecoin supply pool for the requested symbol
-    const match = pools.find((p: any) => String(p.symbol).toUpperCase() === symbol && String(p.chain).toLowerCase() === chain)
+    const match = pools.find((p: Record<string, unknown>) => String(p.symbol).toUpperCase() === symbol && String(p.chain).toLowerCase() === chain)
     const apy = typeof match?.apy === 'number' ? match.apy : null
     return NextResponse.json({ apy })
   } catch (e) {

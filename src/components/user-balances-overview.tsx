@@ -1,13 +1,13 @@
 'use client'
 
-import { useMarketBalances, type ConditionInfo, type PositionBalance } from '@/hooks/useMarketBalances'
+import { useMarketBalances, type ConditionInfo } from '@/hooks/useMarketBalances'
 import { useMarketOdds } from '@/hooks/useMarketOdds'
 import { useMarketStats } from '@/hooks/useMarketStats'
 import { usePolymarketData } from '@/hooks/usePolymarket'
 import { useVaultResolution } from '@/hooks/useVaultResolution'
 import React, { useState } from 'react'
 import { getAllMarkets } from '@/lib/markets-config'
-import { Button } from '@/components/ui/button'
+// import { Button } from '@/components/ui/button' // Removed unused
 import { getStatusColor, getCategoryColor } from '@/components/market-icons'
 import { MarketStatus } from '@/types'
 import { TradingModal } from '@/components/trading-modal'
@@ -16,215 +16,215 @@ import { YM_VAULT_ABI, CONDITIONAL_TOKENS_ABI, SAFE_ABI } from '@/lib/abis'
 import { useMarket } from '@/contexts/market-context'
 import { SafeAddressCache } from '@/lib/safe-cache'
 import { logger } from '@/lib/logger'
-import { CONTRACT_ADDRESSES } from '@/lib/config'
+// import { CONTRACT_ADDRESSES } from '@/lib/config' // Removed unused
 
-interface BalanceCardProps {
-  position: PositionBalance
-  onDeposit?: (position: PositionBalance, amount: string) => void
-  onWithdraw?: (position: PositionBalance, amount: string) => void
-  isTransacting?: boolean
-}
+// interface BalanceCardProps {
+//   position: PositionBalance
+//   onDeposit?: (position: PositionBalance, amount: string) => void
+//   onWithdraw?: (position: PositionBalance, amount: string) => void
+//   isTransacting?: boolean
+// }
 
-function BalanceCard({ position, onDeposit, onWithdraw, isTransacting }: BalanceCardProps) {
-  const [depositAmount, setDepositAmount] = useState('')
-  const [withdrawAmount, setWithdrawAmount] = useState('')
-  const [showDepositInput, setShowDepositInput] = useState(false)
-  const [showWithdrawInput, setShowWithdrawInput] = useState(false)
+// function BalanceCard({ position, onDeposit, onWithdraw, isTransacting }: BalanceCardProps) {
+//   const [depositAmount, setDepositAmount] = useState('')
+//   const [withdrawAmount, setWithdrawAmount] = useState('')
+//   const [showDepositInput, setShowDepositInput] = useState(false)
+//   const [showWithdrawInput, setShowWithdrawInput] = useState(false)
 
-  const formatValue = (value: number) => {
-    if (value >= 1000000) {
-      return (value / 1000000).toFixed(1) + 'M'
-    } else if (value >= 1000) {
-      return (value / 1000).toFixed(1) + 'K'
-    }
-    return Math.floor(value).toString()
-  }
+//   const formatValue = (value: number) => {
+//     if (value >= 1000000) {
+//       return (value / 1000000).toFixed(1) + 'M'
+//     } else if (value >= 1000) {
+//       return (value / 1000).toFixed(1) + 'K'
+//     }
+//     return Math.floor(value).toString()
+//   }
 
-  const getOutcomeColor = (outcomeLabel: string, outcomeIndex: number) => {
-    if (outcomeLabel === 'YES') return 'bg-green-50 border-green-200 text-green-800'
-    if (outcomeLabel === 'NO') return 'bg-red-50 border-red-200 text-red-800'
-    
-    // For multiple choice, use different colors
-    const colors = [
-      'bg-blue-50 border-blue-200 text-blue-800',
-      'bg-purple-50 border-purple-200 text-purple-800',
-      'bg-yellow-50 border-yellow-200 text-yellow-800',
-      'bg-pink-50 border-pink-200 text-pink-800',
-    ]
-    return colors[outcomeIndex % colors.length]
-  }
+//   const getOutcomeColor = (outcomeLabel: string, outcomeIndex: number) => {
+//     if (outcomeLabel === 'YES') return 'bg-green-50 border-green-200 text-green-800'
+//     if (outcomeLabel === 'NO') return 'bg-red-50 border-red-200 text-red-800'
+//     
+//     // For multiple choice, use different colors
+//     const colors = [
+//       'bg-blue-50 border-blue-200 text-blue-800',
+//       'bg-purple-50 border-purple-200 text-purple-800',
+//       'bg-yellow-50 border-yellow-200 text-yellow-800',
+//       'bg-pink-50 border-pink-200 text-pink-800',
+//     ]
+//     return colors[outcomeIndex % colors.length]
+//   }
 
-  const handleDeposit = () => {
-    if (depositAmount && onDeposit) {
-      onDeposit(position, depositAmount)
-      setDepositAmount('')
-      setShowDepositInput(false)
-    }
-  }
+//   const handleDeposit = () => {
+//     if (depositAmount && onDeposit) {
+//       onDeposit(position, depositAmount)
+//       setDepositAmount('')
+//       setShowDepositInput(false)
+//     }
+//   }
 
-  const handleWithdraw = () => {
-    if (withdrawAmount && onWithdraw) {
-      onWithdraw(position, withdrawAmount)
-      setWithdrawAmount('')
-      setShowWithdrawInput(false)
-    }
-  }
+//   const handleWithdraw = () => {
+//     if (withdrawAmount && onWithdraw) {
+//       onWithdraw(position, withdrawAmount)
+//       setWithdrawAmount('')
+//       setShowWithdrawInput(false)
+//     }
+//   }
 
-  const isYesNoToken = ['YES', 'NO'].includes(position.outcomeLabel)
+//   const isYesNoToken = ['YES', 'NO'].includes(position.outcomeLabel)
 
-  return (
-    <div
-      className={`p-4 rounded-lg border-2 transition-all border-gray-200 hover:border-gray-300 ${getOutcomeColor(position.outcomeLabel, position.outcomeIndex)}`}
-    >
-      <div className="flex justify-between items-start mb-2">
-        <div className="font-semibold text-sm">{position.outcomeLabel}</div>
-        <div className="text-right">
-          <div className="flex items-baseline gap-1 justify-end">
-            <span className="text-lg font-bold">{formatValue(Number(position.balanceFormatted))}</span>
-            <span className="text-xs text-gray-500">Positions</span>
-          </div>
-          {/* YM Vault breakdown for individual positions - single line */}
-          {Number(position.balanceFormatted) > 0 && (
-            <div className="text-xs text-gray-500 mt-1 whitespace-nowrap">
-              <span className="inline-flex items-center gap-1 mr-1">
-                <span className="w-1 h-1 bg-green-400 rounded-full"></span>
-                <span>{formatValue(Number(position.yieldingBalanceFormatted))} yielding</span>
-              </span>
-              <span className="inline-flex items-center gap-1">
-                <span className="w-1 h-1 bg-gray-400 rounded-full"></span>
-                <span>{formatValue(Number(position.idleBalanceFormatted))} idle</span>
-              </span>
-            </div>
-          )}
-        </div>
-      </div>
-      
-      {/* Action buttons */}
-      <div className="space-y-2">
-        {!showDepositInput && !showWithdrawInput && (
-          <div className="flex gap-2">
-            <Button
-              size="sm"
-              className="flex-1 h-8 text-xs"
-              onClick={() => setShowDepositInput(true)}
-              disabled={isTransacting || !isYesNoToken}
-            >
-              Deposit
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              className="flex-1 h-8 text-xs"
-              onClick={() => setShowWithdrawInput(true)}
-              disabled={isTransacting || !isYesNoToken}
-            >
-              Withdraw
-            </Button>
-          </div>
-        )}
-
-        {showDepositInput && (
-          <div className="space-y-2">
-            <div className="relative">
-              <input
-                type="number"
-                value={depositAmount}
-                onChange={(e) => setDepositAmount(e.target.value)}
-                placeholder="Amount"
-                max={position.idleBalanceFormatted}
-                className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-transparent pr-16 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-              />
-              <button
-                onClick={() => setDepositAmount(position.idleBalanceFormatted)}
-                className="absolute right-1 top-1/2 transform -translate-y-1/2 px-1 py-0.5 text-xs bg-gray-100 hover:bg-gray-200 rounded text-gray-600 whitespace-nowrap"
-              >
-                Max:{formatValue(Number(position.idleBalanceFormatted))}
-              </button>
-            </div>
-            <div className="flex gap-1">
-              <Button
-                size="sm"
-                className="flex-1 h-7 text-xs"
-                onClick={handleDeposit}
-                disabled={!depositAmount || isTransacting}
-              >
-                {isTransacting ? '...' : 'Confirm'}
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                className="flex-1 h-7 text-xs"
-                onClick={() => {
-                  setShowDepositInput(false)
-                  setDepositAmount('')
-                }}
-              >
-                Cancel
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {showWithdrawInput && (
-          <div className="space-y-2">
-            <div className="relative">
-              <input
-                type="number"
-                value={withdrawAmount}
-                onChange={(e) => setWithdrawAmount(e.target.value)}
-                placeholder="Amount"
-                max={position.yieldingBalanceFormatted}
-                className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-transparent pr-16 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-              />
-              <button
-                onClick={() => setWithdrawAmount(position.yieldingBalanceFormatted)}
-                className="absolute right-1 top-1/2 transform -translate-y-1/2 px-1 py-0.5 text-xs bg-gray-100 hover:bg-gray-200 rounded text-gray-600 whitespace-nowrap"
-              >
-                Max:{formatValue(Number(position.yieldingBalanceFormatted))}
-              </button>
-            </div>
-            <div className="flex gap-1">
-              <Button
-                size="sm"
-                variant="outline"
-                className="flex-1 h-7 text-xs"
-                onClick={handleWithdraw}
-                disabled={!withdrawAmount || isTransacting}
-              >
-                {isTransacting ? '...' : 'Confirm'}
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                className="flex-1 h-7 text-xs"
-                onClick={() => {
-                  setShowWithdrawInput(false)
-                  setWithdrawAmount('')
-                }}
-              >
-                Cancel
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {!isYesNoToken && (
-          <div className="text-xs text-amber-600 bg-amber-50 p-2 rounded text-center">
-            Multi-choice tokens coming soon
-          </div>
-        )}
-      </div>
-
-      {position.resolved && (
-        <div className={`text-xs mt-2 px-2 py-1 rounded ${
-          position.isWinning ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'
-        }`}>
-          {position.isWinning ? '🏆 Winner' : 'Not winning'}
-        </div>
-      )}
-    </div>
-  )
-}
+//   return (
+//     <div
+//       className={`p-4 rounded-lg border-2 transition-all border-gray-200 hover:border-gray-300 ${getOutcomeColor(position.outcomeLabel, position.outcomeIndex)}`}
+//     >
+//       <div className="flex justify-between items-start mb-2">
+//         <div className="font-semibold text-sm">{position.outcomeLabel}</div>
+//         <div className="text-right">
+//           <div className="flex items-baseline gap-1 justify-end">
+//             <span className="text-lg font-bold">{formatValue(Number(position.balanceFormatted))}</span>
+//             <span className="text-xs text-gray-500">Positions</span>
+//           </div>
+//           {/* YM Vault breakdown for individual positions - single line */}
+//           {Number(position.balanceFormatted) > 0 && (
+//             <div className="text-xs text-gray-500 mt-1 whitespace-nowrap">
+//               <span className="inline-flex items-center gap-1 mr-1">
+//                 <span className="w-1 h-1 bg-green-400 rounded-full"></span>
+//                 <span>{formatValue(Number(position.yieldingBalanceFormatted))} yielding</span>
+//               </span>
+//               <span className="inline-flex items-center gap-1">
+//                 <span className="w-1 h-1 bg-gray-400 rounded-full"></span>
+//                 <span>{formatValue(Number(position.idleBalanceFormatted))} idle</span>
+//               </span>
+//             </div>
+//           )}
+//         </div>
+//       </div>
+//       
+//       {/* Action buttons */}
+//       <div className="space-y-2">
+//         {!showDepositInput && !showWithdrawInput && (
+//           <div className="flex gap-2">
+//             <Button
+//               size="sm"
+//               className="flex-1 h-8 text-xs"
+//               onClick={() => setShowDepositInput(true)}
+//               disabled={isTransacting || !isYesNoToken}
+//             >
+//               Deposit
+//             </Button>
+//             <Button
+//               size="sm"
+//               variant="outline"
+//               className="flex-1 h-8 text-xs"
+//               onClick={() => setShowWithdrawInput(true)}
+//               disabled={isTransacting || !isYesNoToken}
+//             >
+//               Withdraw
+//             </Button>
+//           </div>
+//         )}
+//   
+//         {showDepositInput && (
+//           <div className="space-y-2">
+//             <div className="relative">
+//               <input
+//                 type="number"
+//                 value={depositAmount}
+//                 onChange={(e) => setDepositAmount(e.target.value)}
+//                 placeholder="Amount"
+//                 max={position.idleBalanceFormatted}
+//                 className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-transparent pr-16 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+//               />
+//               <button
+//                 onClick={() => setDepositAmount(position.idleBalanceFormatted)}
+//                 className="absolute right-1 top-1/2 transform -translate-y-1/2 px-1 py-0.5 text-xs bg-gray-100 hover:bg-gray-200 rounded text-gray-600 whitespace-nowrap"
+//               >
+//                 Max:{formatValue(Number(position.idleBalanceFormatted))}
+//               </button>
+//             </div>
+//             <div className="flex gap-1">
+//               <Button
+//                 size="sm"
+//                 className="flex-1 h-7 text-xs"
+//                 onClick={handleDeposit}
+//                 disabled={!depositAmount || isTransacting}
+//               >
+//                 {isTransacting ? '...' : 'Confirm'}
+//               </Button>
+//               <Button
+//                 size="sm"
+//                 variant="outline"
+//                 className="flex-1 h-7 text-xs"
+//                 onClick={() => {
+//                   setShowDepositInput(false)
+//                   setDepositAmount('')
+//                 }}
+//               >
+//                 Cancel
+//               </Button>
+//             </div>
+//           </div>
+//         )}
+//   
+//         {showWithdrawInput && (
+//           <div className="space-y-2">
+//             <div className="relative">
+//               <input
+//                 type="number"
+//                 value={withdrawAmount}
+//                 onChange={(e) => setWithdrawAmount(e.target.value)}
+//                 placeholder="Amount"
+//                 max={position.yieldingBalanceFormatted}
+//                 className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-transparent pr-16 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+//               />
+//               <button
+//                 onClick={() => setWithdrawAmount(position.yieldingBalanceFormatted)}
+//                 className="absolute right-1 top-1/2 transform -translate-y-1/2 px-1 py-0.5 text-xs bg-gray-100 hover:bg-gray-200 rounded text-gray-600 whitespace-nowrap"
+//               >
+//                 Max:{formatValue(Number(position.yieldingBalanceFormatted))}
+//               </button>
+//             </div>
+//             <div className="flex gap-1">
+//               <Button
+//                 size="sm"
+//                 variant="outline"
+//                 className="flex-1 h-7 text-xs"
+//                 onClick={handleWithdraw}
+//                 disabled={!withdrawAmount || isTransacting}
+//               >
+//                 {isTransacting ? '...' : 'Confirm'}
+//               </Button>
+//               <Button
+//                 size="sm"
+//                 variant="outline"
+//                 className="flex-1 h-7 text-xs"
+//                 onClick={() => {
+//                   setShowWithdrawInput(false)
+//                   setWithdrawAmount('')
+//                 }}
+//               >
+//                 Cancel
+//               </Button>
+//             </div>
+//           </div>
+//         )}
+//   
+//         {!isYesNoToken && (
+//           <div className="text-xs text-amber-600 bg-amber-50 p-2 rounded text-center">
+//             Multi-choice tokens coming soon
+//           </div>
+//         )}
+//       </div>
+//   
+//       {position.resolved && (
+//         <div className={`text-xs mt-2 px-2 py-1 rounded ${
+//           position.isWinning ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'
+//         }`}>
+//           {position.isWinning ? '🏆 Winner' : 'Not winning'}
+//         </div>
+//       )}
+//     </div>
+//   )
+// }
 
 interface ConditionCardProps {
   condition: ConditionInfo
@@ -235,14 +235,14 @@ interface ConditionCardProps {
 
 function ConditionCard({ condition, onTradeClick, preloadedResolved, loadingOutcome }: ConditionCardProps) {
   // Get market odds from contract
-  const { yesOdds, noOdds, loading: oddsLoading } = useMarketOdds(
+  const { } = useMarketOdds(
     condition.conditionId,
     condition.positions.find(p => p.outcomeLabel === 'YES')?.positionId,
     condition.positions.find(p => p.outcomeLabel === 'NO')?.positionId
   )
 
   // Get market stats from YM: volume = idle + yielding (per requirement)
-  const { volume, yielding, idle, loading: statsLoading, error: statsError } = useMarketStats(condition.conditionId)
+  const { volume, yielding, loading: statsLoading, error: statsError } = useMarketStats(condition.conditionId)
   // YES/NO current prices from Polymarket: prefer slug from config if available
   const marketFromCfg = getAllMarkets().find(m => m.conditionId?.toLowerCase?.() === condition.conditionId.toLowerCase())
   const slugForPM = marketFromCfg?.slug
@@ -279,8 +279,8 @@ function ConditionCard({ condition, onTradeClick, preloadedResolved, loadingOutc
   const idleDisplayWithDollar = idleDisplay === '...' ? '...' : `$${idleDisplay}`
   const yieldingDisplayWithDollar = (yieldingDisplay === '...' || yieldingDisplay === '—') ? yieldingDisplay : `$${yieldingDisplay}`
   const volumeDisplayWithDollar = marketVolume === '...' ? '...' : `$${marketVolume}`
-  const marketYielding = statsLoading ? '...' : formatValue(yielding)
-  const marketIdle = statsLoading ? '...' : formatValue(idle)
+  // const marketYielding = statsLoading ? '...' : formatValue(yielding) // Removed unused
+  // const marketIdle = statsLoading ? '...' : formatValue(idle) // Removed unused
 
   const daysUntilExpiration = Math.ceil((condition.expirationDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
   const [mounted, setMounted] = React.useState(false)
@@ -741,7 +741,7 @@ function ConditionCard({ condition, onTradeClick, preloadedResolved, loadingOutc
                         console.log('[Withdraw][SafeExecute] Selected Safe address:', bestSafe.address, 'balance:', String(bestSafe.balance), 'withdraw to user address:', address)
 
                         const { encodeFunctionData, padHex } = await import('viem')
-                        const data = encodeFunctionData({ abi: YM_VAULT_ABI as any, functionName: 'withdraw', args: [address as `0x${string}`] }) as `0x${string}`
+                        const data = encodeFunctionData({ abi: YM_VAULT_ABI, functionName: 'withdraw', args: [address as `0x${string}`] }) as `0x${string}`
 
                         // Check threshold == 1
                         try {
@@ -820,7 +820,7 @@ export function UserBalancesOverview() {
           .filter(addr => addr && !/^0x0{40}$/.test(addr)) as `0x${string}`[]
         const calls = addrs.map(addr =>
           publicClient!.readContract({ address: addr, abi: YM_VAULT_ABI, functionName: 'totalMatched' })
-            .then((v: any) => Number(v as bigint) / 1e6)
+            .then((v: bigint) => Number(v) / 1e6)
             .catch(() => 0)
         )
         const vals = await Promise.all(calls)
@@ -886,7 +886,7 @@ export function UserBalancesOverview() {
   const { isConnected } = useAccount()
   
   // Sorting and filtering state
-  const [sortBy, setSortBy] = useState<'volume'>('volume')
+  // const [sortBy, setSortBy] = useState<'volume'>('volume') // Removed unused
   const [filterBy, setFilterBy] = useState<'all' | 'open' | 'resolved' | 'crypto' | 'political' | 'weather' | 'economics'>('all')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
   const [volumeMap, setVolumeMap] = React.useState<Record<string, number>>({})

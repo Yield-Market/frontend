@@ -1,5 +1,5 @@
 import { MarketInfo, MarketCategory, MarketStatus } from '@/types'
-import { getContractAddress } from '@/lib/config'
+// import { getContractAddress } from '@/lib/config' // Removed unused
 
 // Multi-market Configuration
 export const MARKETS_CONFIG: MarketInfo[] = [
