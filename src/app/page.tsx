@@ -2,13 +2,14 @@
 
 import { WalletDropdown } from '@/components/wallet-dropdown'
 import { UserBalancesOverview } from '@/components/user-balances-overview'
+import { Footer } from '@/components/footer'
 import { MarketProvider, useMarket } from '@/contexts/market-context'
 
 function MarketContent() {
   const { } = useMarket()
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-[#1a1a2e] dark:to-[#16213e]">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-[#1a1a2e] dark:to-[#16213e] flex flex-col">
       {/* Header with Wallet Dropdown */}
       <header className="bg-white/80 dark:bg-[#16213e]/90 backdrop-blur-sm border-b border-gray-200 dark:border-[#34495e] sticky top-0 z-30">
         <div className="container mx-auto px-4 py-4 max-w-6xl">
@@ -26,7 +27,7 @@ function MarketContent() {
         </div>
       </header>
 
-      <div className="container mx-auto px-4 py-8 max-w-6xl">
+      <div className="container mx-auto px-4 py-8 max-w-6xl flex-grow">
         {/* Main Content */}
         <div className="space-y-8">
           {/* Portfolio with Integrated Deposit/Withdraw */}
@@ -48,6 +49,9 @@ function MarketContent() {
           </div>
         </div>
       </div>
+
+      {/* Footer */}
+      <Footer />
     </div>
   )
 }
