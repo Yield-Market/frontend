@@ -16,6 +16,7 @@ import { YM_VAULT_ABI, CONDITIONAL_TOKENS_ABI, SAFE_ABI } from '@/lib/abis'
 import { useMarket } from '@/contexts/market-context'
 import { SafeAddressCache } from '@/lib/safe-cache'
 import { logger } from '@/lib/logger'
+import { Pagination } from '@/components/ui/pagination'
 // import { CONTRACT_ADDRESSES } from '@/lib/config' // Removed unused
 
 // interface BalanceCardProps {
@@ -799,6 +800,10 @@ export function UserBalancesOverview() {
   // Filter state management (moved from page.tsx)
   const [activeFilters, setActiveFilters] = useState<string[]>(['Open'])
 
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
+
   const addFilter = (category: string) => {
     if (!activeFilters.includes(category) && activeFilters.length < 5) {
       setActiveFilters([...activeFilters, category])
@@ -1047,8 +1052,32 @@ export function UserBalancesOverview() {
     return sorted
   }, [allConditions, activeFilters, sortDirection, resolvedMap, volumeMap])
 
-  // Fixed AAVE APY - no longer query dynamically
-  const aaveApy = '4.51%'
+  // Pagination logic
+  const totalItems = filteredAndSortedConditions.length
+  const totalPages = Math.ceil(totalItems / pageSize)
+  const startIndex = (currentPage - 1) * pageSize
+  const endIndex = startIndex + pageSize
+  const paginatedConditions = filteredAndSortedConditions.slice(startIndex, endIndex)
+
+  // Pagination handlers
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page)
+    // Scroll to top of the markets list
+    const marketsSection = document.getElementById('markets-list')
+    if (marketsSection) {
+      marketsSection.scrollIntoView({ behavior: 'smooth' })
+    }
+  }
+
+  const handlePageSizeChange = (newPageSize: number) => {
+    setPageSize(newPageSize)
+    setCurrentPage(1) // Reset to first page when changing page size
+  }
+
+  // Reset to first page when filters change
+  React.useEffect(() => {
+    setCurrentPage(1)
+  }, [activeFilters])
 
   // Only show loading screen during global loading, not during individual token loading
   if (loading) {
@@ -1191,13 +1220,13 @@ export function UserBalancesOverview() {
       </div>
 
       {/* Markets List with Controls */}
-      <div className="space-y-4">
+      <div className="space-y-4" id="markets-list">
         {/* Markets List */}
         <div className="space-y-3">
           {!statusesLoaded ? (
             // Show loading state
             <div className="space-y-3">
-              {markets.map((market) => (
+              {markets.slice(0, pageSize).map((market) => (
                 <div key={market.slug} className="bg-white dark:bg-[#2e3b5e] rounded-xl border-2 dark:border-[#34495e] p-4">
                   <div className="animate-pulse">
                     <div className="flex justify-between items-center mb-3">
@@ -1214,7 +1243,7 @@ export function UserBalancesOverview() {
             </div>
           ) : (
             // Only render actual ConditionCard after status loading is complete
-            filteredAndSortedConditions.map((condition) => (
+            paginatedConditions.map((condition) => (
               <ConditionCard
                 key={condition.conditionId}
                 condition={condition}
@@ -1226,7 +1255,7 @@ export function UserBalancesOverview() {
           )}
         </div>
         
-        {filteredAndSortedConditions.length === 0 && allConditions.length > 0 && (
+        {paginatedConditions.length === 0 && allConditions.length > 0 && (
           <div className="text-center py-8 text-gray-500">
             <div className="mb-2">No markets match your current filters</div>
             {clearFilters && (
@@ -1238,6 +1267,19 @@ export function UserBalancesOverview() {
               </button>
             )}
           </div>
+        )}
+
+        {/* Pagination Component */}
+        {totalItems > pageSize && (
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            pageSize={pageSize}
+            onPageChange={handlePageChange}
+            onPageSizeChange={handlePageSizeChange}
+            className="mt-6"
+          />
         )}
       </div>
 
