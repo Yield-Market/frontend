@@ -799,12 +799,8 @@ export function UserBalancesOverview() {
   // Get loading states and error handling from the hook
   const { loading, error, loadingOutcome, loadBalanceForOutcome } = useMarketBalances()
 
-  // Calculate total positions: markets count * 2 (YES + NO positions per market)
-  const totalPositions = markets.length * 2
-
   // Calculate total value: sum of yielding across all markets (sum of YMVault.totalMatched)
   const publicClient = usePublicClient()
-  const [totalYieldingValue, setTotalYieldingValue] = React.useState<number>(0)
   const [resolvedMap, setResolvedMap] = React.useState<Record<string, boolean>>({})
   const [statusesLoaded, setStatusesLoaded] = React.useState<boolean>(false) // New: whether status loading is complete
   React.useEffect(() => {
@@ -1074,34 +1070,6 @@ export function UserBalancesOverview() {
 
   return (
     <div className="space-y-6">
-      {/* Summary Header */}
-      <div className="bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-[#2e3b5e] dark:to-[#0f4c75] text-white rounded-xl p-6">
-        <div className="flex justify-between items-start mb-4">
-          <h2 className="text-xl font-bold">Yield Market Status</h2>
-          <div className="text-sm bg-white/10 px-3 py-1 rounded-full">
-            Always 1:1 Token Ratio
-          </div>
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-          <div className="bg-white/10 rounded-lg p-4 text-center">
-            <div className="text-sm opacity-90">Total Markets</div>
-            <div className="text-2xl font-bold">{markets.length}</div>
-          </div>
-          <div className="bg-white/10 rounded-lg p-4 text-center">
-            <div className="text-sm opacity-90">Total Positions</div>
-            <div className="text-2xl font-bold">{totalPositions}</div>
-          </div>
-          <div className="bg-white/10 rounded-lg p-4 text-center">
-            <div className="text-sm opacity-90">Total Value</div>
-            <div className="text-2xl font-bold">{formatValue(totalYieldingValue)} USDC</div>
-          </div>
-          <div className="bg-white/10 rounded-lg p-4 text-center">
-            <div className="text-sm opacity-90">Current APY (AAVE)</div>
-            <div className="text-2xl font-bold">{aaveApy}</div>
-          </div>
-        </div>
-      </div>
-
       {/* Markets List with Controls */}
       <div className="space-y-4">
         <div className="flex justify-between items-center">
