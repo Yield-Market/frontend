@@ -793,7 +793,13 @@ function ConditionCard({ condition, onTradeClick, preloadedResolved, loadingOutc
   )
 }
 
-export function UserBalancesOverview() {
+export function UserBalancesOverview({ 
+  activeFilters = ['Open'], 
+  onClearFilters 
+}: { 
+  activeFilters?: string[]
+  onClearFilters?: () => void 
+}) {
   const { markets } = useMarket()
 
   // Get loading states and error handling from the hook
@@ -803,28 +809,6 @@ export function UserBalancesOverview() {
   const publicClient = usePublicClient()
   const [resolvedMap, setResolvedMap] = React.useState<Record<string, boolean>>({})
   const [statusesLoaded, setStatusesLoaded] = React.useState<boolean>(false) // New: whether status loading is complete
-  React.useEffect(() => {
-    let cancelled = false
-    const fetchTotal = async () => {
-      try {
-        const addrs = markets
-          .map(m => (m.ymVaultAddress || '').toLowerCase())
-          .filter(addr => addr && !/^0x0{40}$/.test(addr)) as `0x${string}`[]
-        const calls = addrs.map(addr =>
-          publicClient!.readContract({ address: addr, abi: YM_VAULT_ABI, functionName: 'totalMatched' })
-            .then((v: bigint) => Number(v) / 1e6)
-            .catch(() => 0)
-        )
-        const vals = await Promise.all(calls)
-        if (!cancelled) setTotalYieldingValue(vals.reduce((a, b) => a + b, 0))
-      } catch {
-        if (!cancelled) setTotalYieldingValue(0)
-      }
-    }
-    fetchTotal()
-    const id = setInterval(fetchTotal, 60000)
-    return () => { cancelled = true; clearInterval(id) }
-  }, [markets, publicClient])
 
   // Build a quick map of on-chain resolved states for filtering
   React.useEffect(() => {
@@ -879,7 +863,6 @@ export function UserBalancesOverview() {
   
   // Sorting and filtering state
   // const [sortBy, setSortBy] = useState<'volume'>('volume') // Removed unused
-  const [filterBy, setFilterBy] = useState<'all' | 'open' | 'resolved' | 'crypto' | 'political' | 'weather' | 'economics'>('all')
   const [sortDirection] = useState<'asc' | 'desc'>('desc')
   const [volumeMap, setVolumeMap] = React.useState<Record<string, number>>({})
   // Fetch Polymarket volumes once to support volume sorting
@@ -951,16 +934,6 @@ export function UserBalancesOverview() {
     }
   }
 
-  // Format value function to make numbers look impressive
-  const formatValue = (value: number) => {
-    if (value >= 1000000) {
-      return (value / 1000000).toFixed(1) + 'M'
-    } else if (value >= 1000) {
-      return (value / 1000).toFixed(1) + 'K'
-    }
-    return Math.floor(value).toString()
-  }
-
   // Convert markets to conditions for display
   const allConditions = React.useMemo(() => {
     return markets.map(market => ({
@@ -1016,18 +989,26 @@ export function UserBalancesOverview() {
   const filteredAndSortedConditions = React.useMemo(() => {
     let filtered = allConditions
 
-    // Apply filters (for open/resolved, prefer on-chain state if available)
-    if (filterBy !== 'all') {
-      if (filterBy === 'open' || filterBy === 'resolved') {
-        filtered = allConditions.filter(c => {
-          const onchain = resolvedMap[c.conditionId]
-          if (onchain === true) return filterBy === 'resolved'
-          if (onchain === false) return filterBy === 'open'
-          return c.status === filterBy
+    // Apply filters based on activeFilters
+    if (activeFilters.length > 0) {
+      filtered = allConditions.filter(c => {
+        // Check if any active filter matches
+        return activeFilters.some(filter => {
+          const filterLower = filter.toLowerCase()
+          
+          // Handle status filters
+          if (filterLower === 'open' || filterLower === 'resolved') {
+            const onchain = resolvedMap[c.conditionId]
+            if (onchain === true) return filterLower === 'resolved'
+            if (onchain === false) return filterLower === 'open'
+            return c.status === filterLower
+          }
+          
+          // Handle category filters
+          return c.category?.toLowerCase() === filterLower || 
+                 c.question?.toLowerCase().includes(filterLower)
         })
-      } else {
-        filtered = allConditions.filter(c => c.category === filterBy)
-      }
+      })
     }
 
     // Apply sorting (default: volume desc)
@@ -1038,7 +1019,7 @@ export function UserBalancesOverview() {
     })
 
     return sorted
-  }, [allConditions, filterBy, sortDirection, resolvedMap, volumeMap])
+  }, [allConditions, activeFilters, sortDirection, resolvedMap, volumeMap])
 
   // Fixed AAVE APY - no longer query dynamically
   const aaveApy = '4.51%'
@@ -1072,50 +1053,6 @@ export function UserBalancesOverview() {
     <div className="space-y-6">
       {/* Markets List with Controls */}
       <div className="space-y-4">
-        <div className="flex justify-between items-center">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Available Markets</h3>
-          <div className="text-sm text-gray-600 dark:text-gray-400">
-            {filteredAndSortedConditions.length} of {allConditions.length} markets
-          </div>
-        </div>
-        
-        {/* Sorting and Filtering Controls */}
-        <div className="bg-white dark:bg-[#16213e] rounded-lg border border-gray-200 dark:border-[#34495e] p-4">
-          <div className="flex flex-wrap gap-4 items-center">
-            {/* Only Filter Controls */}
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-gray-700 dark:text-[#e0e0e0]">Filter:</span>
-              <select
-                value={filterBy}
-                onChange={(e) => setFilterBy(e.target.value as 'all' | 'open' | 'resolved')}
-                className="text-sm border border-gray-300 dark:border-[#34495e] dark:bg-[#34495e] dark:text-[#e0e0e0] rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="all">All Markets</option>
-                <option value="open">Open Only</option>
-                <option value="resolved">Resolved Only</option>
-              </select>
-            </div>
-
-            {/* Quick Filter Tags */}
-            <div className="flex items-center gap-2 ml-auto">
-              <span className="text-sm text-gray-500 dark:text-[#a0a0a0]">Quick:</span>
-              {['all', 'open', 'resolved'].map((filter) => (
-                <button
-                  key={filter}
-                  onClick={() => setFilterBy(filter as 'all' | 'open' | 'resolved')}
-                  className={`px-2 py-1 text-xs rounded-full transition-colors ${
-                    filterBy === filter
-                      ? 'bg-blue-100 dark:bg-[#0f4c75] text-blue-800 dark:text-white font-medium'
-                      : 'bg-gray-100 dark:bg-[#34495e] text-gray-600 dark:text-[#e0e0e0] hover:bg-gray-200 dark:hover:bg-[#2e3b5e]'
-                  }`}
-                >
-                  {filter === 'all' ? 'All' : filter.charAt(0).toUpperCase() + filter.slice(1)}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-
         {/* Markets List */}
         <div className="space-y-3">
           {!statusesLoaded ? (
@@ -1153,12 +1090,14 @@ export function UserBalancesOverview() {
         {filteredAndSortedConditions.length === 0 && allConditions.length > 0 && (
           <div className="text-center py-8 text-gray-500">
             <div className="mb-2">No markets match your current filters</div>
-            <button
-              onClick={() => setFilterBy('all')}
-              className="text-blue-600 hover:text-blue-800 text-sm underline"
-            >
-              Clear filters
-            </button>
+            {onClearFilters && (
+              <button
+                onClick={onClearFilters}
+                className="text-blue-600 hover:text-blue-800 text-sm underline"
+              >
+                Clear filters
+              </button>
+            )}
           </div>
         )}
       </div>
