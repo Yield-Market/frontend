@@ -124,27 +124,42 @@ function MarketContent() {
               </button>
             </div>
             
-            {/* Active Filters */}
+            {/* Active Filters and Sort Controls */}
             {activeFilters.length > 0 && (
-              <div className="flex flex-wrap justify-center gap-2 mt-4">
-                <span className="text-sm text-gray-600 dark:text-gray-400 mr-2">Active Filters:</span>
-                {activeFilters.map((filter) => (
-                  <div
-                    key={filter}
-                    className="inline-flex items-center gap-1 px-3 py-1 text-sm bg-blue-500 text-white rounded-full"
-                  >
-                    <span>{filter}</span>
-                    <button
-                      onClick={() => removeFilter(filter)}
-                      className="ml-1 hover:bg-blue-600 rounded-full p-0.5 transition-colors"
-                      aria-label={`Remove ${filter} filter`}
-                    >
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
+              <div className="container mx-auto px-4 max-w-6xl mt-4">
+                <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm text-gray-600 dark:text-gray-400">Active Filters:</span>
+                    {activeFilters.map((filter) => (
+                      <div
+                        key={filter}
+                        className="inline-flex items-center gap-1 px-3 py-1 text-sm bg-blue-500 text-white rounded-full"
+                      >
+                        <span>{filter}</span>
+                        <button
+                          onClick={() => removeFilter(filter)}
+                          className="ml-1 hover:bg-blue-600 rounded-full p-0.5 transition-colors"
+                          aria-label={`Remove ${filter} filter`}
+                        >
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+                    ))}
                   </div>
-                ))}
+                  
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-600 dark:text-gray-400">Sort by:</span>
+                    <select className="text-sm border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                      <option value="volume">Volume</option>
+                      <option value="newest">Newest</option>
+                      <option value="oldest">Oldest</option>
+                      <option value="alphabetical">A-Z</option>
+                      <option value="probability">Probability</option>
+                    </select>
+                  </div>
+                </div>
               </div>
             )}
           </div>
