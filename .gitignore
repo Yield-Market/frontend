@@ -57,3 +57,4 @@ SECURITY_IMPROVEMENTS.md
 # Trunk tool
 .trunk/
 
+src/generated/*
