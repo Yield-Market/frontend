@@ -3,6 +3,29 @@
  * Unified management of environment variables and default configurations
  */
 
+// API Configuration - 后端 API 配置
+export const API_CONFIG = {
+  // Base URL for backend API
+  BASE_URL: process.env.NEXT_PUBLIC_API_BASE_URL,
+  
+  // API version
+  VERSION: process.env.NEXT_PUBLIC_API_VERSION,
+  
+  // Full API URL
+  get FULL_URL() {
+    return `${this.BASE_URL}/api/${this.VERSION}`;
+  },
+  
+  // Request timeout in milliseconds
+  TIMEOUT_MS: parseInt(process.env.NEXT_PUBLIC_API_TIMEOUT_MS || '30000'),
+  
+  // Request headers
+  DEFAULT_HEADERS: {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+  },
+} as const
+
 // Network Configuration
 export const NETWORK_CONFIG = {
   // Supported Chain IDs
