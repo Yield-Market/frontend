@@ -1,5 +1,6 @@
 'use client'
 
+import { useRef } from 'react'
 import { WalletDropdown } from '@/components/wallet-dropdown'
 import { UserBalancesOverview } from '@/components/user-balances-overview'
 import { Footer } from '@/components/footer'
@@ -7,6 +8,13 @@ import { MarketProvider, useMarket } from '@/contexts/market-context'
 
 function MarketContent() {
   const { } = useMarket()
+  const addFilterRef = useRef<((category: string) => void) | null>(null)
+
+  const handlePolymarketUserClick = () => {
+    if (addFilterRef.current) {
+      addFilterRef.current('Polymarket Portfolio')
+    }
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-[#1a1a2e] dark:to-[#16213e] flex flex-col">
@@ -31,21 +39,19 @@ function MarketContent() {
         {/* Main Content */}
         <div className="space-y-8">
           {/* Portfolio with Integrated Deposit/Withdraw */}
-          <UserBalancesOverview />
+          <UserBalancesOverview onAddFilterRef={addFilterRef} />
           
           {/* Polymarket User Link */}
           <div className="text-center">
-            <a 
-              href="https://polymarket.com" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 font-medium underline underline-offset-2 transition-colors"
+            <button 
+              onClick={handlePolymarketUserClick}
+              className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 font-medium underline underline-offset-2 transition-colors cursor-pointer"
             >
               <span>I&apos;m a polymarket user</span>
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
-            </a>
+            </button>
           </div>
         </div>
       </div>

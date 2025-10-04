@@ -794,7 +794,11 @@ function ConditionCard({ condition, onTradeClick, preloadedResolved, loadingOutc
   )
 }
 
-export function UserBalancesOverview() {
+interface UserBalancesOverviewProps {
+  onAddFilterRef?: React.MutableRefObject<((category: string) => void) | null>
+}
+
+export function UserBalancesOverview({ onAddFilterRef }: UserBalancesOverviewProps = {}) {
   const { markets } = useMarket()
   
   // Filter state management (moved from page.tsx)
@@ -804,11 +808,18 @@ export function UserBalancesOverview() {
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
 
-  const addFilter = (category: string) => {
+  const addFilter = React.useCallback((category: string) => {
     if (!activeFilters.includes(category) && activeFilters.length < 5) {
       setActiveFilters([...activeFilters, category])
     }
-  }
+  }, [activeFilters])
+
+  // Expose addFilter function to parent component via ref
+  React.useEffect(() => {
+    if (onAddFilterRef) {
+      onAddFilterRef.current = addFilter
+    }
+  }, [onAddFilterRef, addFilter])
 
   const removeFilter = (category: string) => {
     if (['Open', 'Close', 'Trending'].includes(category)) {
@@ -1179,6 +1190,12 @@ export function UserBalancesOverview() {
               className="px-3 py-1 text-sm bg-pink-100 dark:bg-pink-900/30 text-pink-700 dark:text-pink-300 rounded-full hover:bg-pink-200 dark:hover:bg-pink-900/50 transition-colors"
             >
               Entertainment
+            </button>
+            <button 
+              onClick={() => addFilter('Polymarket Portfolio')}
+              className="px-3 py-1 text-sm bg-cyan-100 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-300 rounded-full hover:bg-cyan-200 dark:hover:bg-cyan-900/50 transition-colors"
+            >
+              Polymarket Portfolio
             </button>
           </div>
         </div>
