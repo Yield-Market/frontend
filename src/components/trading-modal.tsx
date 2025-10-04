@@ -1236,7 +1236,17 @@ export function TradingModal({
 
           {/* Disclaimer */}
           <div className="mt-4 text-xs text-gray-500 text-center">
-            By trading, you agree to our terms and acknowledge the risks involved.
+            By trading, you agree to our terms and acknowledge the risks involved.{' '}
+            {marketCfg?.slug && (
+              <a 
+                href={`https://polymarket.com/event/${marketCfg.slug}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-gray-500 underline hover:text-gray-600 transition-colors"
+              >
+                see market
+              </a>
+            )}
           </div>
         </div>
       </div>
