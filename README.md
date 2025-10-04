@@ -48,6 +48,12 @@ A Next.js application for interacting with the Yield Market Bridge (Y-M) smart c
 
 3. Open [http://localhost:3000](http://localhost:3000) in your browser
 
+### API generation
+
+```
+npx @openapitools/openapi-generator-cli generate -i api/api/swagger.yaml -g typescript-fetch -o src/generated/api --additional-properties=typescriptThreePlus=true,supportsES6=true,npmName=yield-market-api,npmVersion=1.0.0
+```
+
 ## Smart Contract Integration
 
 The frontend integrates with the Y-M smart contracts on your local Polygon fork (port 8545). The application supports:
