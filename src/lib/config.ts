@@ -3,7 +3,7 @@
  * Unified management of environment variables and default configurations
  */
 
-// API Configuration - 后端 API 配置
+// API Configuration - backend API config
 export const API_CONFIG = {
   // Base URL for backend API
   BASE_URL: process.env.NEXT_PUBLIC_API_BASE_URL,
