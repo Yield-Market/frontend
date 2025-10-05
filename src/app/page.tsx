@@ -2,7 +2,7 @@
 
 import { useRef } from 'react'
 import { WalletDropdown } from '@/components/wallet-dropdown'
-import { UserBalancesOverview } from '@/components/user-balances-overview'
+import { MarketOverview } from '@/components/market-overview'
 import { Footer } from '@/components/footer'
 import { MarketProvider, useMarket } from '@/contexts/market-context'
 
@@ -38,8 +38,8 @@ function MarketContent() {
       <div className="container mx-auto px-4 py-8 max-w-6xl flex-grow">
         {/* Main Content */}
         <div className="space-y-8">
-          {/* Portfolio with Integrated Deposit/Withdraw */}
-          <UserBalancesOverview onAddFilterRef={addFilterRef} />
+          {/* Market Overview with Trading Interface */}
+          <MarketOverview onAddFilterRef={addFilterRef} />
           
           {/* Polymarket User Link */}
           <div className="text-center">

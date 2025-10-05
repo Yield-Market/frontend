@@ -794,11 +794,11 @@ function ConditionCard({ condition, onTradeClick, preloadedResolved, loadingOutc
   )
 }
 
-interface UserBalancesOverviewProps {
+interface MarketOverviewProps {
   onAddFilterRef?: React.MutableRefObject<((category: string) => void) | null>
 }
 
-export function UserBalancesOverview({ onAddFilterRef }: UserBalancesOverviewProps = {}) {
+export function MarketOverview({ onAddFilterRef }: MarketOverviewProps = {}) {
   const { markets } = useMarket()
   
   // Filter state management (moved from page.tsx)
