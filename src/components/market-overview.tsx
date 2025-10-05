@@ -5,18 +5,18 @@ import { useMarketOdds } from '@/hooks/useMarketOdds'
 import { useMarketStats } from '@/hooks/useMarketStats'
 import { usePolymarketData } from '@/hooks/usePolymarket'
 import { useVaultResolution } from '@/hooks/useVaultResolution'
+import { useMarketsApi } from '@/hooks/useMarketsApi'
 import React, { useState } from 'react'
-import { getAllMarkets } from '@/lib/markets-config'
 // import { Button } from '@/components/ui/button' // Removed unused
 import { getStatusColor, getCategoryColor } from '@/components/market-icons'
-import { MarketStatus } from '@/types'
+import { MarketStatus, MarketCategory } from '@/types'
 import { TradingModal } from '@/components/trading-modal'
 import { useAccount, useWriteContract, usePublicClient, useChainId } from 'wagmi'
 import { YM_VAULT_ABI, CONDITIONAL_TOKENS_ABI, SAFE_ABI } from '@/lib/abis'
-import { useMarket } from '@/contexts/market-context'
 import { SafeAddressCache } from '@/lib/safe-cache'
 import { logger } from '@/lib/logger'
 import { Pagination } from '@/components/ui/pagination'
+import { HandlersMarketItem } from '@/generated/api/src/models'
 // import { CONTRACT_ADDRESSES } from '@/lib/config' // Removed unused
 
 // interface BalanceCardProps {
@@ -229,21 +229,22 @@ import { Pagination } from '@/components/ui/pagination'
 
 interface ConditionCardProps {
   condition: ConditionInfo
+  markets?: HandlersMarketItem[] | null // Add markets prop
   onTradeClick?: (outcome: 'YES' | 'NO', condition: ConditionInfo) => void
   preloadedResolved?: boolean // New: preloaded resolution state
   loadingOutcome?: 'YES' | 'NO' | null // New: currently loading token type
 }
 
-function ConditionCard({ condition, onTradeClick, preloadedResolved, loadingOutcome }: ConditionCardProps) {
+function ConditionCard({ condition, markets, onTradeClick, preloadedResolved, loadingOutcome }: ConditionCardProps) {
   // Get market odds from contract
   const { } = useMarketOdds(condition.conditionId)
 
   // Get market stats from YM: volume = idle + yielding (per requirement)
   const { volume, yielding, loading: statsLoading, error: statsError } = useMarketStats(condition.conditionId)
-  // YES/NO current prices from Polymarket: prefer slug from config if available
-  const marketFromCfg = getAllMarkets().find(m => m.conditionId?.toLowerCase?.() === condition.conditionId.toLowerCase())
-  const slugForPM = marketFromCfg?.slug
-  const { yesPrice, noPrice, volume: pmVolume } = usePolymarketData(slugForPM || condition.conditionId, 60000, !!slugForPM)
+  // YES/NO current prices from Polymarket: prefer slug from API data if available
+  const marketFromApi = markets?.find(m => (m.id || m.slug) === condition.conditionId)
+  const slugForPM = marketFromApi?.slug || condition.conditionId
+  const { yesPrice, noPrice, volume: pmVolume } = usePolymarketData(slugForPM, 60000, !!marketFromApi?.slug)
   const { isResolved, vaultAddress } = useVaultResolution(condition.conditionId)
   const { writeContractAsync } = useWriteContract()
   const publicClient = usePublicClient()
@@ -799,7 +800,7 @@ interface MarketOverviewProps {
 }
 
 export function MarketOverview({ onAddFilterRef }: MarketOverviewProps = {}) {
-  const { markets } = useMarket()
+  const { markets } = useMarketsApi()
   
   // Filter state management (moved from page.tsx)
   const [activeFilters, setActiveFilters] = useState<string[]>(['Open'])
@@ -863,25 +864,25 @@ export function MarketOverview({ onAddFilterRef }: MarketOverviewProps = {}) {
         const entries: [string, boolean][] = []
         const ctfAddress = "0x4D97DCd97eC945f40cF65F87097ACe5EA0476045"
         
-        for (const m of markets) {
-          if (!m.conditionId) continue
+        for (const m of markets || []) {
+          if (!m.id) continue
           try {
             // Query ConditionalTokens payoutDenominator to check if resolved
             const payoutDenominator: bigint = await publicClient!.readContract({
               address: ctfAddress as `0x${string}`,
               abi: CONDITIONAL_TOKENS_ABI,
               functionName: 'payoutDenominator',
-              args: [m.conditionId as `0x${string}`]
+              args: [m.id as `0x${string}`]
             }) as unknown as bigint
             
             const isResolved = payoutDenominator !== undefined && payoutDenominator > 0n
-            entries.push([m.conditionId, isResolved])
+            entries.push([m.id, isResolved])
             
             console.log(`[StatusLoader] Market ${m.slug}: ${isResolved ? 'Resolved' : 'Open'} (denominator: ${payoutDenominator})`)
           } catch (e) {
             console.warn(`[StatusLoader] Failed to check resolution for ${m.slug}:`, e)
             // If query fails, default to unresolved
-            entries.push([m.conditionId, false])
+            entries.push([m.id, false])
           }
         }
         
@@ -976,21 +977,69 @@ export function MarketOverview({ onAddFilterRef }: MarketOverviewProps = {}) {
     }
   }
 
-  // Convert markets to conditions for display
+  // Helper function to map API category to MarketCategory enum
+  const mapApiCategoryToMarketCategory = (category?: string): MarketCategory => {
+    if (!category) return MarketCategory.Other
+    
+    switch (category.toLowerCase()) {
+      case 'crypto':
+      case 'cryptocurrency':
+        return MarketCategory.Crypto
+      case 'politics':
+      case 'political':
+        return MarketCategory.Political
+      case 'sports':
+        return MarketCategory.Sports
+      case 'weather':
+        return MarketCategory.Weather
+      case 'economics':
+      case 'economy':
+        return MarketCategory.Economics
+      case 'technology':
+      case 'tech':
+        return MarketCategory.Technology
+      default:
+        return MarketCategory.Other
+    }
+  }
+
+  // Helper function to map API status to MarketStatus enum
+  const mapApiStatusToMarketStatus = (status?: string): MarketStatus => {
+    if (!status) return MarketStatus.Open
+    
+    switch (status.toLowerCase()) {
+      case 'open':
+      case 'active':
+        return MarketStatus.Open
+      case 'resolved':
+      case 'closed':
+        return MarketStatus.Resolved
+      case 'expired':
+        return MarketStatus.Expired
+      case 'paused':
+        return MarketStatus.Paused
+      default:
+        return MarketStatus.Open
+    }
+  }
+
+  // Convert markets from API to conditions for display
   const allConditions = React.useMemo(() => {
-    return markets.map(market => ({
-      conditionId: market.conditionId,
-      questionId: '0x' + market.slug,
-      question: market.question,
+    if (!markets || markets.length === 0) return []
+    
+    return markets.map((market: HandlersMarketItem) => ({
+      conditionId: market.id || market.slug || '0x' + Math.random().toString(16).slice(2), // 使用 id 或 slug 作为临时 conditionId
+      questionId: '0x' + (market.slug || 'unknown'),
+      question: market.question || 'Unknown Market',
       outcomeSlotCount: 2,
-      resolved: market.status === MarketStatus.Resolved,
+      resolved: (market.status || '').toLowerCase() === 'resolved',
       winningOutcome: 0,
-      oracle: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
+      oracle: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266', // 默认 oracle 地址
       positions: [
         {
-          positionId: market.yesPositionId,
-          conditionId: market.conditionId,
-          questionId: '0x' + market.slug,
+          positionId: (market.id || market.slug || 'unknown') + '_yes', // 生成临时的 position ID
+          conditionId: market.id || market.slug || '0x' + Math.random().toString(16).slice(2),
+          questionId: '0x' + (market.slug || 'unknown'),
           outcomeIndex: 0,
           outcomeLabel: 'YES',
           balance: BigInt(0),
@@ -999,14 +1048,14 @@ export function MarketOverview({ onAddFilterRef }: MarketOverviewProps = {}) {
           yieldingBalanceFormatted: '0.00',
           idleBalance: BigInt(0),
           idleBalanceFormatted: '0.00',
-          resolved: market.status === MarketStatus.Resolved,
+          resolved: (market.status || '').toLowerCase() === 'resolved',
           winningOutcome: undefined,
           isWinning: undefined,
         },
         {
-          positionId: market.noPositionId,
-          conditionId: market.conditionId,
-          questionId: '0x' + market.slug,
+          positionId: (market.id || market.slug || 'unknown') + '_no', // 生成临时的 position ID
+          conditionId: market.id || market.slug || '0x' + Math.random().toString(16).slice(2),
+          questionId: '0x' + (market.slug || 'unknown'),
           outcomeIndex: 1,
           outcomeLabel: 'NO',
           balance: BigInt(0),
@@ -1015,15 +1064,15 @@ export function MarketOverview({ onAddFilterRef }: MarketOverviewProps = {}) {
           yieldingBalanceFormatted: '0.00',
           idleBalance: BigInt(0),
           idleBalanceFormatted: '0.00',
-          resolved: market.status === MarketStatus.Resolved,
+          resolved: (market.status || '').toLowerCase() === 'resolved',
           winningOutcome: undefined,
           isWinning: undefined,
         }
       ],
-      category: market.category,
-      status: market.status,
-      createdAt: new Date(market.createdAt),
-      expirationDate: market.endTime ? new Date(market.endTime * 1000) : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+      category: mapApiCategoryToMarketCategory(market.category),
+      status: mapApiStatusToMarketStatus(market.status),
+      createdAt: market.createdAt ? new Date(market.createdAt) : new Date(),
+      expirationDate: market.endTime ? new Date(market.endTime) : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
     }))
   }, [markets])
 
@@ -1033,7 +1082,7 @@ export function MarketOverview({ onAddFilterRef }: MarketOverviewProps = {}) {
 
     // Apply filters based on activeFilters
     if (activeFilters.length > 0) {
-      filtered = allConditions.filter(c => {
+      filtered = allConditions.filter((c: ConditionInfo) => {
         // Check if any active filter matches
         return activeFilters.some(filter => {
           const filterLower = filter.toLowerCase()
@@ -1243,7 +1292,7 @@ export function MarketOverview({ onAddFilterRef }: MarketOverviewProps = {}) {
           {!statusesLoaded ? (
             // Show loading state
             <div className="space-y-3">
-              {markets.slice(0, pageSize).map((market) => (
+              {(markets || []).slice(0, pageSize).map((market: HandlersMarketItem) => (
                 <div key={market.slug} className="bg-white dark:bg-[#2e3b5e] rounded-xl border-2 dark:border-[#34495e] p-4">
                   <div className="animate-pulse">
                     <div className="flex justify-between items-center mb-3">
@@ -1264,6 +1313,7 @@ export function MarketOverview({ onAddFilterRef }: MarketOverviewProps = {}) {
               <ConditionCard
                 key={condition.conditionId}
                 condition={condition}
+                markets={markets} // Pass markets data
                 onTradeClick={handleTradeClick}
                 preloadedResolved={resolvedMap[condition.conditionId]}
                 loadingOutcome={loadingOutcome}
