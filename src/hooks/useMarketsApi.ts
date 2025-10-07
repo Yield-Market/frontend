@@ -35,6 +35,8 @@ export function useMarketsApi(options: UseMarketsApiOptions = {}): UseMarketsApi
     try {
       setLoading(true)
       setError(null)
+      // 先清空 markets 以触发动画效果
+      setMarkets([])
 
       const config = new Configuration({
         basePath: process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080'
