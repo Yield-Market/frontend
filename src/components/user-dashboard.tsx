@@ -32,27 +32,29 @@ export function UserDashboard({ isOpen, onClose }: UserDashboardProps) {
     }).format(num)
   }
 
+  // 只有在 isOpen 为 true 时才渲染 dashboard
+  if (!isOpen) {
+    return null
+  }
+
   return (
     <>
       {/* Optional subtle backdrop - only show when open */}
-      {isOpen && (
-        <div 
-          className="fixed inset-0 z-[60] transition-opacity duration-300"
-          onClick={onClose}
-          style={{ 
-            backgroundColor: 'rgba(0, 0, 0, 0.1)',
-            height: '100vh',
-            width: '100vw'
-          }}
-        />
-      )}
+      <div 
+        className="fixed inset-0 z-[60] transition-opacity duration-300"
+        onClick={onClose}
+        style={{ 
+          backgroundColor: 'rgba(0, 0, 0, 0.1)',
+          height: '100vh',
+          width: '100vw'
+        }}
+      />
       
       {/* Dashboard Panel with slide animation */}
       <div 
         className={cn(
           "fixed top-0 right-0 w-96 bg-white dark:bg-gray-900 shadow-2xl z-[70] overflow-y-auto",
-          "transition-transform duration-300 ease-in-out",
-          isOpen ? "transform translate-x-0" : "transform translate-x-full"
+          "transition-transform duration-300 ease-in-out transform translate-x-0"
         )}
         style={{ 
           height: '100vh',
