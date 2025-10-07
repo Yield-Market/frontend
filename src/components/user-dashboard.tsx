@@ -17,17 +17,6 @@ export function UserDashboard({ isOpen, onClose }: UserDashboardProps) {
   const balances = useMarketBalances()
   const { userInfo, userPositions, loading, error, refetch } = useUserData()
 
-  // Debug logging
-  console.log('UserDashboard render:', { isOpen, address })
-  
-  // Don't render anything if dashboard is not open
-  if (!isOpen) {
-    console.log('Dashboard not open, returning null')
-    return null
-  }
-  
-  console.log('Dashboard is open, rendering...')
-
   const formatAddress = (addr: string) => {
     return `${addr.slice(0, 6)}...${addr.slice(-4)}`
   }
@@ -45,22 +34,27 @@ export function UserDashboard({ isOpen, onClose }: UserDashboardProps) {
 
   return (
     <>
-      {/* Backdrop */}
-      <div 
-        className="fixed inset-0 bg-black bg-opacity-50 z-[60]"
-        onClick={onClose}
-        style={{ 
-          display: 'block',
-          height: '100vh',
-          width: '100vw'
-        }}
-      />
+      {/* Optional subtle backdrop - only show when open */}
+      {isOpen && (
+        <div 
+          className="fixed inset-0 z-[60] transition-opacity duration-300"
+          onClick={onClose}
+          style={{ 
+            backgroundColor: 'rgba(0, 0, 0, 0.1)',
+            height: '100vh',
+            width: '100vw'
+          }}
+        />
+      )}
       
-      {/* Dashboard Panel */}
+      {/* Dashboard Panel with slide animation */}
       <div 
-        className="fixed top-0 right-0 w-96 bg-white dark:bg-gray-900 shadow-2xl z-[70] overflow-y-auto"
+        className={cn(
+          "fixed top-0 right-0 w-96 bg-white dark:bg-gray-900 shadow-2xl z-[70] overflow-y-auto",
+          "transition-transform duration-300 ease-in-out",
+          isOpen ? "transform translate-x-0" : "transform translate-x-full"
+        )}
         style={{ 
-          display: 'block',
           height: '100vh',
           minHeight: '100vh'
         }}

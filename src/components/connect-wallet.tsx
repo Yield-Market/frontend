@@ -52,7 +52,6 @@ export function ConnectWallet() {
               <Button
                 onClick={(e) => {
                   e.stopPropagation()
-                  console.log('Dashboard button clicked!')
                   setIsDashboardOpen(true)
                 }}
                 className="w-full bg-blue-600 hover:bg-blue-700"
@@ -66,7 +65,6 @@ export function ConnectWallet() {
               <Button
                 onClick={(e) => {
                   e.stopPropagation()
-                  console.log('Disconnect button clicked!')
                   disconnect()
                 }}
                 variant="outline"

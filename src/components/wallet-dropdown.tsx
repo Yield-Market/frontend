@@ -21,9 +21,6 @@ export function WalletDropdown() {
   const { disconnect } = useDisconnect()
   const chainId = useChainId()
 
-  // Debug logging for dashboard state
-  console.log('WalletDropdown render:', { isDashboardOpen, isConnected, address })
-
   // Prevent hydration mismatch by only rendering after mount
   useEffect(() => {
     setMounted(true)
@@ -66,10 +63,7 @@ export function WalletDropdown() {
         
         <UserDashboard 
           isOpen={isDashboardOpen}
-          onClose={() => {
-            console.log('Dashboard onClose called')
-            setIsDashboardOpen(false)
-          }}
+          onClose={() => setIsDashboardOpen(false)}
         />
       </>
     )
@@ -153,10 +147,7 @@ export function WalletDropdown() {
                     <Button
                       onClick={(e) => {
                         e.stopPropagation()
-                        console.log('Dashboard button clicked from dropdown!')
-                        console.log('Before setting dashboard open:', isDashboardOpen)
                         setIsDashboardOpen(true)
-                        console.log('After setting dashboard open - should be true')
                         setIsOpen(false)
                       }}
                       className="w-full bg-blue-600 hover:bg-blue-700 text-white"
@@ -171,7 +162,6 @@ export function WalletDropdown() {
                     <Button
                       onClick={(e) => {
                         e.stopPropagation()
-                        console.log('Disconnect button clicked!')
                         handleDisconnect()
                       }}
                       variant="outline"
