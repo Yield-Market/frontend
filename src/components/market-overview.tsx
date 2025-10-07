@@ -832,7 +832,7 @@ export function MarketOverview({ onAddFilterRef }: MarketOverviewProps = {}) {
   }, [activeFilters, activeSearchQuery])
 
   // Main markets API call - with applied search query
-  const { markets, total, loading: marketsLoading, error: marketsError } = useMarketsApi({
+  const { markets, total, error: marketsError } = useMarketsApi({
     page: currentPage,
     pageSize,
     status: apiFilters.status,
@@ -1177,18 +1177,6 @@ export function MarketOverview({ onAddFilterRef }: MarketOverviewProps = {}) {
   // Get loading states and error handling from the balance hook
   const { loadingOutcome: balanceLoadingOutcome, loadBalanceForOutcome } = useMarketBalances()
 
-  // Only show loading screen during global loading, not during individual token loading
-  if (marketsLoading) {
-    return (
-      <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-8">
-        <div className="flex items-center justify-center">
-          <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-          <span className="ml-3 text-gray-600">Loading markets...</span>
-        </div>
-      </div>
-    )
-  }
-
   if (marketsError) {
     return (
       <div className="bg-white rounded-xl shadow-lg border border-red-200 p-8">
@@ -1438,31 +1426,7 @@ export function MarketOverview({ onAddFilterRef }: MarketOverviewProps = {}) {
       <div className="space-y-4" id="markets-list">
         {/* Markets List */}
         <AnimatePresence mode="wait">
-          {!statusesLoaded ? (
-            // Show loading state
-            <motion.div 
-              key="loading"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="space-y-3"
-            >
-              {(markets || []).slice(0, pageSize).map((market: HandlersMarketItem) => (
-                <div key={market.slug} className="bg-white dark:bg-[#2e3b5e] rounded-xl border-2 dark:border-[#34495e] p-4">
-                  <div className="animate-pulse">
-                    <div className="flex justify-between items-center mb-3">
-                      <div className="h-4 bg-gray-200 rounded w-3/4"></div>
-                      <div className="h-6 bg-gray-200 rounded w-16"></div>
-                    </div>
-                    <div className="space-y-2">
-                      <div className="h-3 bg-gray-200 rounded w-1/2"></div>
-                      <div className="h-3 bg-gray-200 rounded w-1/3"></div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </motion.div>
-          ) : (
+          {statusesLoaded && (
             // Only render actual ConditionCard after status loading is complete with stagger animation
             <motion.div
               key="markets"
@@ -1510,8 +1474,8 @@ export function MarketOverview({ onAddFilterRef }: MarketOverviewProps = {}) {
           </div>
         )}
 
-        {/* Pagination Component */}
-        {totalItems > pageSize && (
+        {/* Pagination Component - only show when data is loaded */}
+        {statusesLoaded && totalItems > pageSize && (
           <Pagination
             currentPage={currentPage}
             totalPages={totalPages}
