@@ -7,6 +7,7 @@ import { usePolymarketData } from '@/hooks/usePolymarket'
 import { useVaultResolution } from '@/hooks/useVaultResolution'
 import { useMarketsApi } from '@/hooks/useMarketsApi'
 import React, { useState } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 // import { Button } from '@/components/ui/button' // Removed unused
 import { getStatusColor, getCategoryColor } from '@/components/market-icons'
 import { MarketStatus, MarketCategory } from '@/types'
@@ -1436,10 +1437,16 @@ export function MarketOverview({ onAddFilterRef }: MarketOverviewProps = {}) {
       {/* Markets List with Controls */}
       <div className="space-y-4" id="markets-list">
         {/* Markets List */}
-        <div className="space-y-3">
+        <AnimatePresence mode="wait">
           {!statusesLoaded ? (
             // Show loading state
-            <div className="space-y-3">
+            <motion.div 
+              key="loading"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="space-y-3"
+            >
               {(markets || []).slice(0, pageSize).map((market: HandlersMarketItem) => (
                 <div key={market.slug} className="bg-white dark:bg-[#2e3b5e] rounded-xl border-2 dark:border-[#34495e] p-4">
                   <div className="animate-pulse">
@@ -1454,21 +1461,40 @@ export function MarketOverview({ onAddFilterRef }: MarketOverviewProps = {}) {
                   </div>
                 </div>
               ))}
-            </div>
+            </motion.div>
           ) : (
-            // Only render actual ConditionCard after status loading is complete
-            allConditions.map((condition) => (
-              <ConditionCard
-                key={condition.conditionId}
-                condition={condition}
-                markets={markets} // Pass markets data
-                onTradeClick={handleTradeClick}
-                preloadedResolved={resolvedMap[condition.conditionId]}
-                loadingOutcome={balanceLoadingOutcome}
-              />
-            ))
+            // Only render actual ConditionCard after status loading is complete with stagger animation
+            <motion.div
+              key="markets"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.3 }}
+              className="space-y-3"
+            >
+              {allConditions.map((condition, index) => (
+                <motion.div
+                  key={condition.conditionId}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ 
+                    duration: 0.4,
+                    delay: index * 0.1,
+                    ease: "easeOut"
+                  }}
+                >
+                  <ConditionCard
+                    condition={condition}
+                    markets={markets} // Pass markets data
+                    onTradeClick={handleTradeClick}
+                    preloadedResolved={resolvedMap[condition.conditionId]}
+                    loadingOutcome={balanceLoadingOutcome}
+                  />
+                </motion.div>
+              ))}
+            </motion.div>
           )}
-        </div>
+        </AnimatePresence>
         
         {allConditions.length === 0 && statusesLoaded && (
           <div className="text-center py-8 text-gray-500">
