@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { MarketsApi, Configuration, HandlersMarketItem, HandlersMarketsListResponse } from '@/generated/api/src'
 
 interface UseMarketsApiOptions {
@@ -22,10 +22,6 @@ export function useMarketsApi(options: UseMarketsApiOptions = {}): UseMarketsApi
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  
-  // Use refs to track the latest options without causing re-renders
-  const searchRef = useRef<string>('')
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   const {
     page = 1,
@@ -35,7 +31,7 @@ export function useMarketsApi(options: UseMarketsApiOptions = {}): UseMarketsApi
     search
   } = options
 
-  const fetchMarkets = useCallback(async (searchQuery?: string) => {
+  const fetchMarkets = useCallback(async () => {
     try {
       setLoading(true)
       setError(null)
@@ -51,7 +47,7 @@ export function useMarketsApi(options: UseMarketsApiOptions = {}): UseMarketsApi
         pageSize,
         category,
         status,
-        q: searchQuery !== undefined ? searchQuery : search
+        q: search
       })
       
       setMarkets(response.items || [])
@@ -66,42 +62,15 @@ export function useMarketsApi(options: UseMarketsApiOptions = {}): UseMarketsApi
     }
   }, [page, pageSize, category, status, search])
 
-  // Debounce search queries
   useEffect(() => {
-    if (search !== searchRef.current) {
-      searchRef.current = search || ''
-      
-      // Clear existing timeout
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current)
-      }
-      
-      // Set new timeout for search
-      if (search) {
-        timeoutRef.current = setTimeout(() => {
-          fetchMarkets(search)
-        }, 300) // 300ms debounce
-      } else {
-        // If search is empty, fetch immediately
-        fetchMarkets('')
-      }
-    } else {
-      // For non-search parameter changes, fetch immediately
-      fetchMarkets()
-    }
-
-    return () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current)
-      }
-    }
-  }, [fetchMarkets, search])
+    fetchMarkets()
+  }, [fetchMarkets])
 
   return {
     markets,
     total,
     loading,
     error,
-    refetch: () => fetchMarkets()
+    refetch: fetchMarkets
   }
 }

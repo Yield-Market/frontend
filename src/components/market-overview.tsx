@@ -17,6 +17,7 @@ import { SafeAddressCache } from '@/lib/safe-cache'
 import { logger } from '@/lib/logger'
 import { Pagination } from '@/components/ui/pagination'
 import { HandlersMarketItem } from '@/generated/api/src/models'
+import { MarketsApi, Configuration } from '@/generated/api/src'
 // import { CONTRACT_ADDRESSES } from '@/lib/config' // Removed unused
 
 // interface BalanceCardProps {
@@ -803,6 +804,10 @@ export function MarketOverview({ onAddFilterRef }: MarketOverviewProps = {}) {
   // Filter state management (moved from page.tsx)
   const [activeFilters, setActiveFilters] = useState<string[]>(['open'])
   const [searchQuery, setSearchQuery] = useState<string>('')
+  const [activeSearchQuery, setActiveSearchQuery] = useState<string>('') // Applied search
+  const [searchResults, setSearchResults] = useState<HandlersMarketItem[]>([])
+  const [showSearchDropdown, setShowSearchDropdown] = useState(false)
+  const [isSearching, setIsSearching] = useState(false)
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1)
@@ -821,11 +826,11 @@ export function MarketOverview({ onAddFilterRef }: MarketOverviewProps = {}) {
     return {
       status: statusFilters.length > 0 ? convertStatusForApi(statusFilters[0].toLowerCase()) : undefined,
       category: categoryFilters.length > 0 ? categoryFilters[0].toLowerCase() : undefined,
-      search: searchQuery.trim() || undefined
+      search: activeSearchQuery.trim() || undefined // Use applied search query
     }
-  }, [activeFilters, searchQuery])
+  }, [activeFilters, activeSearchQuery])
 
-  // Use the API hook with proper filters
+  // Main markets API call - with applied search query
   const { markets, total, loading: marketsLoading, error: marketsError } = useMarketsApi({
     page: currentPage,
     pageSize,
@@ -833,6 +838,44 @@ export function MarketOverview({ onAddFilterRef }: MarketOverviewProps = {}) {
     category: apiFilters.category,
     search: apiFilters.search
   })
+
+  // Search suggestions API call
+  const searchApi = React.useMemo(() => {
+    const config = new Configuration({
+      basePath: process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080'
+    })
+    return new MarketsApi(config)
+  }, [])
+
+  // Debounced search for suggestions
+  React.useEffect(() => {
+    if (searchQuery.trim() === '') {
+      setSearchResults([])
+      setShowSearchDropdown(false)
+      return
+    }
+
+    setIsSearching(true)
+    const searchTimeout = setTimeout(async () => {
+      try {
+        const response = await searchApi.apiV1MarketsGet({
+          q: searchQuery.trim(),
+          pageSize: 5, // Limit suggestions to 5 items
+          status: apiFilters.status,
+          category: apiFilters.category
+        })
+        setSearchResults(response.items || [])
+        setShowSearchDropdown(true)
+      } catch (error) {
+        console.error('Search suggestions failed:', error)
+        setSearchResults([])
+      } finally {
+        setIsSearching(false)
+      }
+    }, 300) // 300ms debounce
+
+    return () => clearTimeout(searchTimeout)
+  }, [searchQuery, searchApi, apiFilters.status, apiFilters.category])
 
   const addFilter = React.useCallback((category: string) => {
     const normalizedCategory = category.toLowerCase()
@@ -871,6 +914,7 @@ export function MarketOverview({ onAddFilterRef }: MarketOverviewProps = {}) {
   const clearFilters = () => {
     setActiveFilters(['open'])
     setSearchQuery('')
+    setActiveSearchQuery('')
   }
 
   // Calculate total value: sum of yielding across all markets (sum of YMVault.totalMatched)
@@ -1099,7 +1143,29 @@ export function MarketOverview({ onAddFilterRef }: MarketOverviewProps = {}) {
   // Reset to first page when filters change
   React.useEffect(() => {
     setCurrentPage(1)
-  }, [activeFilters, searchQuery])
+  }, [activeFilters, activeSearchQuery])
+
+  // Handle search selection or enter key
+  const handleSearchSubmit = (selectedMarket?: HandlersMarketItem) => {
+    if (selectedMarket) {
+      // Selected from dropdown
+      setSearchQuery(selectedMarket.question || '')
+      setActiveSearchQuery(selectedMarket.question || '')
+    } else {
+      // Enter key pressed
+      setActiveSearchQuery(searchQuery.trim())
+    }
+    setShowSearchDropdown(false)
+    setCurrentPage(1)
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleSearchSubmit()
+    } else if (e.key === 'Escape') {
+      setShowSearchDropdown(false)
+    }
+  }
 
   // Get loading states and error handling from the balance hook
   const { loadingOutcome: balanceLoadingOutcome, loadBalanceForOutcome } = useMarketBalances()
@@ -1142,9 +1208,80 @@ export function MarketOverview({ onAddFilterRef }: MarketOverviewProps = {}) {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={handleKeyDown}
+              onFocus={() => searchQuery.trim() && setShowSearchDropdown(true)}
               placeholder="Search markets..."
               className="block w-full pl-10 pr-3 py-3 border border-gray-300 dark:border-[#34495e] rounded-lg bg-white dark:bg-[#16213e] text-gray-900 dark:text-[#e0e0e0] placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:focus:ring-[#6495ed] dark:focus:border-[#6495ed] transition-colors"
             />
+            
+            {/* Search Dropdown */}
+            {showSearchDropdown && searchQuery.trim() && (
+              <div className="absolute z-50 w-full mt-1 bg-white dark:bg-[#2e3b5e] border border-gray-300 dark:border-[#34495e] rounded-lg shadow-lg max-h-64 overflow-y-auto">
+                {isSearching && (
+                  <div className="p-3 text-center text-gray-500 dark:text-gray-400">
+                    <div className="flex items-center justify-center">
+                      <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mr-2"></div>
+                      Searching...
+                    </div>
+                  </div>
+                )}
+                
+                {!isSearching && searchResults.length === 0 && (
+                  <div className="p-3 text-center text-gray-500 dark:text-gray-400 text-sm">
+                    No markets found for &ldquo;{searchQuery}&rdquo;
+                  </div>
+                )}
+                
+                {!isSearching && searchResults.map((market) => (
+                  <button
+                    key={market.id || market.slug}
+                    onClick={() => handleSearchSubmit(market)}
+                    className="w-full p-3 text-left hover:bg-gray-50 dark:hover:bg-[#34495e] transition-colors border-b border-gray-100 dark:border-[#34495e] last:border-b-0"
+                  >
+                    <div className="text-sm font-medium text-gray-900 dark:text-[#e0e0e0] line-clamp-2">
+                      {market.question}
+                    </div>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className={`px-2 py-1 text-xs rounded-full ${
+                        market.status === 'active' 
+                          ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
+                          : market.status === 'resolved'
+                          ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
+                          : 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300'
+                      }`}>
+                        {market.status === 'active' ? 'Open' : 
+                         market.status === 'resolved' ? 'Resolved' : 
+                         market.status?.toUpperCase()}
+                      </span>
+                      {market.category && (
+                        <span className="text-xs text-gray-500 dark:text-gray-400 capitalize">
+                          {market.category}
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                ))}
+                
+                {!isSearching && searchResults.length > 0 && (
+                  <div className="p-2 border-t border-gray-200 dark:border-[#34495e] bg-gray-50 dark:bg-[#34495e]">
+                    <button
+                      onClick={() => handleSearchSubmit()}
+                      className="w-full text-center text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200 py-1"
+                    >
+                      Press Enter to search for &ldquo;{searchQuery}&rdquo;
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Click outside to close dropdown */}
+            {showSearchDropdown && (
+              <div
+                className="fixed inset-0 z-40"
+                onClick={() => setShowSearchDropdown(false)}
+              />
+            )}
           </div>
           
           {/* Category Labels */}
