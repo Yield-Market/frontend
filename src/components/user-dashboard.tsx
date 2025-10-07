@@ -270,16 +270,6 @@ export function UserDashboard({ isOpen, onClose }: UserDashboardProps) {
               {/* Action Buttons */}
               <div className="space-y-3 pt-6 border-t border-gray-200 dark:border-gray-700">
                 <Button 
-                  className="w-full bg-blue-600 hover:bg-blue-700 transition-colors duration-200" 
-                  onClick={() => window.location.href = '/'}
-                >
-                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
-                  Explore Markets
-                </Button>
-                
-                <Button 
                   variant="outline" 
                   className="w-full transition-colors duration-200" 
                   onClick={refetch}
