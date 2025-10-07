@@ -17,6 +17,17 @@ export function UserDashboard({ isOpen, onClose }: UserDashboardProps) {
   const balances = useMarketBalances()
   const { userInfo, userPositions, loading, error, refetch } = useUserData()
 
+  // Debug logging
+  console.log('UserDashboard render:', { isOpen, address })
+  
+  // Don't render anything if dashboard is not open
+  if (!isOpen) {
+    console.log('Dashboard not open, returning null')
+    return null
+  }
+  
+  console.log('Dashboard is open, rendering...')
+
   const formatAddress = (addr: string) => {
     return `${addr.slice(0, 6)}...${addr.slice(-4)}`
   }
@@ -36,19 +47,23 @@ export function UserDashboard({ isOpen, onClose }: UserDashboardProps) {
     <>
       {/* Backdrop */}
       <div 
-        className={cn(
-          "fixed inset-0 bg-black/50 z-40 transition-opacity duration-300",
-          isOpen ? "opacity-100" : "opacity-0 pointer-events-none"
-        )}
+        className="fixed inset-0 bg-black bg-opacity-50 z-[60]"
         onClick={onClose}
+        style={{ 
+          display: 'block',
+          height: '100vh',
+          width: '100vw'
+        }}
       />
       
       {/* Dashboard Panel */}
       <div 
-        className={cn(
-          "fixed top-0 right-0 h-full w-96 bg-white dark:bg-gray-900 shadow-2xl z-50 transform transition-all duration-300 ease-in-out overflow-y-auto",
-          isOpen ? "translate-x-0" : "translate-x-full"
-        )}
+        className="fixed top-0 right-0 w-96 bg-white dark:bg-gray-900 shadow-2xl z-[70] overflow-y-auto"
+        style={{ 
+          display: 'block',
+          height: '100vh',
+          minHeight: '100vh'
+        }}
       >
         {/* Header */}
         <div className="sticky top-0 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 p-6 z-10">

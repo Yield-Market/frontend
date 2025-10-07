@@ -50,7 +50,11 @@ export function ConnectWallet() {
 
             <div className="space-y-2">
               <Button
-                onClick={() => setIsDashboardOpen(true)}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  console.log('Dashboard button clicked!')
+                  setIsDashboardOpen(true)
+                }}
                 className="w-full bg-blue-600 hover:bg-blue-700"
               >
                 <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -60,7 +64,11 @@ export function ConnectWallet() {
               </Button>
 
               <Button
-                onClick={() => disconnect()}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  console.log('Disconnect button clicked!')
+                  disconnect()
+                }}
                 variant="outline"
                 className="w-full"
               >
