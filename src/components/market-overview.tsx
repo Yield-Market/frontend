@@ -913,8 +913,7 @@ export function MarketOverview({ onAddFilterRef }: MarketOverviewProps = {}) {
 
   const clearFilters = () => {
     setActiveFilters(['open'])
-    setSearchQuery('')
-    setActiveSearchQuery('')
+    clearSearch()
   }
 
   // Calculate total value: sum of yielding across all markets (sum of YMVault.totalMatched)
@@ -1167,6 +1166,13 @@ export function MarketOverview({ onAddFilterRef }: MarketOverviewProps = {}) {
     }
   }
 
+  const clearSearch = () => {
+    setSearchQuery('')
+    setActiveSearchQuery('')
+    setShowSearchDropdown(false)
+    setSearchResults([])
+  }
+
   // Get loading states and error handling from the balance hook
   const { loadingOutcome: balanceLoadingOutcome, loadBalanceForOutcome } = useMarketBalances()
 
@@ -1211,8 +1217,21 @@ export function MarketOverview({ onAddFilterRef }: MarketOverviewProps = {}) {
               onKeyDown={handleKeyDown}
               onFocus={() => searchQuery.trim() && setShowSearchDropdown(true)}
               placeholder="Search markets..."
-              className="block w-full pl-10 pr-3 py-3 border border-gray-300 dark:border-[#34495e] rounded-lg bg-white dark:bg-[#16213e] text-gray-900 dark:text-[#e0e0e0] placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:focus:ring-[#6495ed] dark:focus:border-[#6495ed] transition-colors"
+              className="block w-full pl-10 pr-10 py-3 border border-gray-300 dark:border-[#34495e] rounded-lg bg-white dark:bg-[#16213e] text-gray-900 dark:text-[#e0e0e0] placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:focus:ring-[#6495ed] dark:focus:border-[#6495ed] transition-colors"
             />
+            
+            {/* Clear Button */}
+            {searchQuery.trim() && (
+              <button
+                onClick={clearSearch}
+                className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 transition-colors"
+                aria-label="Clear search"
+              >
+                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
             
             {/* Search Dropdown */}
             {showSearchDropdown && searchQuery.trim() && (
