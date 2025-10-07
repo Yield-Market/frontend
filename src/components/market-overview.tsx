@@ -813,8 +813,13 @@ export function MarketOverview({ onAddFilterRef }: MarketOverviewProps = {}) {
     const statusFilters = activeFilters.filter(f => ['open', 'resolved', 'expired', 'paused'].includes(f.toLowerCase()))
     const categoryFilters = activeFilters.filter(f => ['crypto', 'political', 'sports', 'weather', 'economics', 'technology', 'other'].includes(f.toLowerCase()))
     
+    // Convert 'open' to 'active' for backend API
+    const convertStatusForApi = (status: string) => {
+      return status === 'open' ? 'active' : status
+    }
+    
     return {
-      status: statusFilters.length > 0 ? statusFilters[0].toLowerCase() : undefined,
+      status: statusFilters.length > 0 ? convertStatusForApi(statusFilters[0].toLowerCase()) : undefined,
       category: categoryFilters.length > 0 ? categoryFilters[0].toLowerCase() : undefined,
       search: searchQuery.trim() || undefined
     }
@@ -1003,8 +1008,8 @@ export function MarketOverview({ onAddFilterRef }: MarketOverviewProps = {}) {
     if (!status) return MarketStatus.Open
     
     switch (status.toLowerCase()) {
+      case 'active':  // Backend stores 'open' as 'active'
       case 'open':
-      case 'active':
         return MarketStatus.Open
       case 'resolved':
       case 'closed':
@@ -1027,7 +1032,7 @@ export function MarketOverview({ onAddFilterRef }: MarketOverviewProps = {}) {
       questionId: '0x' + (market.slug || 'unknown'),
       question: market.question || 'Unknown Market',
       outcomeSlotCount: 2,
-      resolved: (market.status || '').toLowerCase() === 'resolved',
+      resolved: (market.status || '').toLowerCase() === 'resolved' || (market.status || '').toLowerCase() === 'closed',
       winningOutcome: 0,
       oracle: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
       positions: [
@@ -1043,7 +1048,7 @@ export function MarketOverview({ onAddFilterRef }: MarketOverviewProps = {}) {
           yieldingBalanceFormatted: '0.00',
           idleBalance: BigInt(0),
           idleBalanceFormatted: '0.00',
-          resolved: (market.status || '').toLowerCase() === 'resolved',
+          resolved: (market.status || '').toLowerCase() === 'resolved' || (market.status || '').toLowerCase() === 'closed',
           winningOutcome: undefined,
           isWinning: undefined,
         },
@@ -1059,7 +1064,7 @@ export function MarketOverview({ onAddFilterRef }: MarketOverviewProps = {}) {
           yieldingBalanceFormatted: '0.00',
           idleBalance: BigInt(0),
           idleBalanceFormatted: '0.00',
-          resolved: (market.status || '').toLowerCase() === 'resolved',
+          resolved: (market.status || '').toLowerCase() === 'resolved' || (market.status || '').toLowerCase() === 'closed',
           winningOutcome: undefined,
           isWinning: undefined,
         }
