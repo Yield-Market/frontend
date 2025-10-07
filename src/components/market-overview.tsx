@@ -1294,7 +1294,7 @@ export function MarketOverview({ onAddFilterRef }: MarketOverviewProps = {}) {
           
           {/* Category Labels */}
           <div className="flex flex-wrap justify-center gap-2">
-            <span className="text-sm text-gray-600 dark:text-gray-400 mr-2">Categories:</span>
+            {/* <span className="text-sm text-gray-600 dark:text-gray-400 mr-2">Labels:</span>*/}
             {/* Core Status Categories - Always Present */}
             <button 
               onClick={() => addFilter('open')}
