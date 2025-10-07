@@ -800,18 +800,39 @@ interface MarketOverviewProps {
 }
 
 export function MarketOverview({ onAddFilterRef }: MarketOverviewProps = {}) {
-  const { markets } = useMarketsApi()
-  
   // Filter state management (moved from page.tsx)
-  const [activeFilters, setActiveFilters] = useState<string[]>(['Open'])
+  const [activeFilters, setActiveFilters] = useState<string[]>(['open'])
+  const [searchQuery, setSearchQuery] = useState<string>('')
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
+  
+  // Convert activeFilters to API parameters
+  const apiFilters = React.useMemo(() => {
+    const statusFilters = activeFilters.filter(f => ['open', 'resolved', 'expired', 'paused'].includes(f.toLowerCase()))
+    const categoryFilters = activeFilters.filter(f => ['crypto', 'political', 'sports', 'weather', 'economics', 'technology', 'other'].includes(f.toLowerCase()))
+    
+    return {
+      status: statusFilters.length > 0 ? statusFilters[0].toLowerCase() : undefined,
+      category: categoryFilters.length > 0 ? categoryFilters[0].toLowerCase() : undefined,
+      search: searchQuery.trim() || undefined
+    }
+  }, [activeFilters, searchQuery])
+
+  // Use the API hook with proper filters
+  const { markets, total, loading: marketsLoading, error: marketsError } = useMarketsApi({
+    page: currentPage,
+    pageSize,
+    status: apiFilters.status,
+    category: apiFilters.category,
+    search: apiFilters.search
+  })
 
   const addFilter = React.useCallback((category: string) => {
-    if (!activeFilters.includes(category) && activeFilters.length < 5) {
-      setActiveFilters([...activeFilters, category])
+    const normalizedCategory = category.toLowerCase()
+    if (!activeFilters.includes(normalizedCategory) && activeFilters.length < 5) {
+      setActiveFilters([...activeFilters, normalizedCategory])
     }
   }, [activeFilters])
 
@@ -823,30 +844,29 @@ export function MarketOverview({ onAddFilterRef }: MarketOverviewProps = {}) {
   }, [onAddFilterRef, addFilter])
 
   const removeFilter = (category: string) => {
-    if (['Open', 'Close', 'Trending'].includes(category)) {
+    const normalizedCategory = category.toLowerCase()
+    if (['open', 'resolved', 'trending'].includes(normalizedCategory)) {
       // For core filters, allow complete removal
-      const nonCoreFilters = activeFilters.filter(f => !['Open', 'Close', 'Trending'].includes(f))
-      if (category === 'Open') {
-        // If removing 'Open', keep other core filters + non-core filters
-        const otherCoreFilters = activeFilters.filter(f => ['Close', 'Trending'].includes(f))
+      const nonCoreFilters = activeFilters.filter(f => !['open', 'resolved', 'trending'].includes(f))
+      if (normalizedCategory === 'open') {
+        // If removing 'open', keep other core filters + non-core filters
+        const otherCoreFilters = activeFilters.filter(f => ['resolved', 'trending'].includes(f))
         setActiveFilters([...otherCoreFilters, ...nonCoreFilters])
       } else {
-        // If removing 'Close' or 'Trending', keep other filters (including Open if present)
-        const otherFilters = activeFilters.filter(f => f !== category)
+        // If removing 'resolved' or 'trending', keep other filters (including open if present)
+        const otherFilters = activeFilters.filter(f => f !== normalizedCategory)
         setActiveFilters(otherFilters)
       }
     } else {
       // For non-core filters, simply remove them
-      setActiveFilters(activeFilters.filter(f => f !== category))
+      setActiveFilters(activeFilters.filter(f => f !== normalizedCategory))
     }
   }
 
   const clearFilters = () => {
-    setActiveFilters(['Open'])
+    setActiveFilters(['open'])
+    setSearchQuery('')
   }
-
-  // Get loading states and error handling from the hook
-  const { loading, error, loadingOutcome, loadBalanceForOutcome } = useMarketBalances()
 
   // Calculate total value: sum of yielding across all markets (sum of YMVault.totalMatched)
   const publicClient = usePublicClient()
@@ -904,31 +924,6 @@ export function MarketOverview({ onAddFilterRef }: MarketOverviewProps = {}) {
   }, [markets, publicClient])
   const { isConnected } = useAccount()
   
-  // Sorting and filtering state
-  // const [sortBy, setSortBy] = useState<'volume'>('volume') // Removed unused
-  const [sortDirection] = useState<'asc' | 'desc'>('desc')
-  const [volumeMap, setVolumeMap] = React.useState<Record<string, number>>({})
-  // Fetch Polymarket volumes once to support volume sorting
-  React.useEffect(() => {
-    let cancelled = false
-    ;(async () => {
-      try {
-        const resp = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent('https://gamma-api.polymarket.com/markets?limit=2000&active=true')}`, { 
-          cache: 'no-store'
-        })
-        const list = await resp.json()
-        const m: Record<string, number> = {}
-        if (Array.isArray(list)) {
-          for (const item of list) {
-            if (item?.conditionId) m[item.conditionId.toLowerCase()] = Number(item.volumeNum || 0)
-          }
-        }
-        if (!cancelled) setVolumeMap(m)
-      } catch {}
-    })()
-    return () => { cancelled = true }
-  }, [])
-
   // Trading modal state
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [selectedOutcome, setSelectedOutcome] = useState<'YES' | 'NO'>('YES')
@@ -1028,16 +1023,16 @@ export function MarketOverview({ onAddFilterRef }: MarketOverviewProps = {}) {
     if (!markets || markets.length === 0) return []
     
     return markets.map((market: HandlersMarketItem) => ({
-      conditionId: market.id || market.slug || '0x' + Math.random().toString(16).slice(2), // 使用 id 或 slug 作为临时 conditionId
+      conditionId: market.id || market.slug || '0x' + Math.random().toString(16).slice(2),
       questionId: '0x' + (market.slug || 'unknown'),
       question: market.question || 'Unknown Market',
       outcomeSlotCount: 2,
       resolved: (market.status || '').toLowerCase() === 'resolved',
       winningOutcome: 0,
-      oracle: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266', // 默认 oracle 地址
+      oracle: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
       positions: [
         {
-          positionId: (market.id || market.slug || 'unknown') + '_yes', // 生成临时的 position ID
+          positionId: (market.id || market.slug || 'unknown') + '_yes',
           conditionId: market.id || market.slug || '0x' + Math.random().toString(16).slice(2),
           questionId: '0x' + (market.slug || 'unknown'),
           outcomeIndex: 0,
@@ -1053,7 +1048,7 @@ export function MarketOverview({ onAddFilterRef }: MarketOverviewProps = {}) {
           isWinning: undefined,
         },
         {
-          positionId: (market.id || market.slug || 'unknown') + '_no', // 生成临时的 position ID
+          positionId: (market.id || market.slug || 'unknown') + '_no',
           conditionId: market.id || market.slug || '0x' + Math.random().toString(16).slice(2),
           questionId: '0x' + (market.slug || 'unknown'),
           outcomeIndex: 1,
@@ -1076,48 +1071,10 @@ export function MarketOverview({ onAddFilterRef }: MarketOverviewProps = {}) {
     }))
   }, [markets])
 
-  // Filter and sort conditions
-  const filteredAndSortedConditions = React.useMemo(() => {
-    let filtered = allConditions
-
-    // Apply filters based on activeFilters
-    if (activeFilters.length > 0) {
-      filtered = allConditions.filter((c: ConditionInfo) => {
-        // Check if any active filter matches
-        return activeFilters.some(filter => {
-          const filterLower = filter.toLowerCase()
-          
-          // Handle status filters
-          if (filterLower === 'open' || filterLower === 'resolved') {
-            const onchain = resolvedMap[c.conditionId]
-            if (onchain === true) return filterLower === 'resolved'
-            if (onchain === false) return filterLower === 'open'
-            return c.status === filterLower
-          }
-          
-          // Handle category filters
-          return c.category?.toLowerCase() === filterLower || 
-                 c.question?.toLowerCase().includes(filterLower)
-        })
-      })
-    }
-
-    // Apply sorting (default: volume desc)
-    const sorted = [...filtered].sort((a, b) => {
-      const av = volumeMap[a.conditionId.toLowerCase()] ?? 0
-      const bv = volumeMap[b.conditionId.toLowerCase()] ?? 0
-      return sortDirection === 'desc' ? bv - av : av - bv
-    })
-
-    return sorted
-  }, [allConditions, activeFilters, sortDirection, resolvedMap, volumeMap])
-
-  // Pagination logic
-  const totalItems = filteredAndSortedConditions.length
+  // Since API handles filtering, we use the data as-is for display
+  // Pagination is handled by the API, so we use the current page data
+  const totalItems = total || 0
   const totalPages = Math.ceil(totalItems / pageSize)
-  const startIndex = (currentPage - 1) * pageSize
-  const endIndex = startIndex + pageSize
-  const paginatedConditions = filteredAndSortedConditions.slice(startIndex, endIndex)
 
   // Pagination handlers
   const handlePageChange = (page: number) => {
@@ -1137,32 +1094,33 @@ export function MarketOverview({ onAddFilterRef }: MarketOverviewProps = {}) {
   // Reset to first page when filters change
   React.useEffect(() => {
     setCurrentPage(1)
-  }, [activeFilters])
+  }, [activeFilters, searchQuery])
+
+  // Get loading states and error handling from the balance hook
+  const { loadingOutcome: balanceLoadingOutcome, loadBalanceForOutcome } = useMarketBalances()
 
   // Only show loading screen during global loading, not during individual token loading
-  if (loading) {
+  if (marketsLoading) {
     return (
       <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-8">
         <div className="flex items-center justify-center">
           <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-          <span className="ml-3 text-gray-600">Loading your balances...</span>
+          <span className="ml-3 text-gray-600">Loading markets...</span>
         </div>
       </div>
     )
   }
 
-  if (error) {
+  if (marketsError) {
     return (
       <div className="bg-white rounded-xl shadow-lg border border-red-200 p-8">
         <div className="text-center">
-          <div className="text-red-600 mb-2">⚠️ Error loading balances</div>
-          <div className="text-sm text-gray-600">{error}</div>
+          <div className="text-red-600 mb-2">⚠️ Error loading markets</div>
+          <div className="text-sm text-gray-600">{marketsError}</div>
         </div>
       </div>
     )
   }
-
-  // Always show markets interface, no longer check if conditions.length === 0
 
   return (
     <div className="space-y-6">
@@ -1177,6 +1135,8 @@ export function MarketOverview({ onAddFilterRef }: MarketOverviewProps = {}) {
             </div>
             <input
               type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search markets..."
               className="block w-full pl-10 pr-3 py-3 border border-gray-300 dark:border-[#34495e] rounded-lg bg-white dark:bg-[#16213e] text-gray-900 dark:text-[#e0e0e0] placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:focus:ring-[#6495ed] dark:focus:border-[#6495ed] transition-colors"
             />
@@ -1185,25 +1145,26 @@ export function MarketOverview({ onAddFilterRef }: MarketOverviewProps = {}) {
           {/* Category Labels */}
           <div className="flex flex-wrap justify-center gap-2">
             <span className="text-sm text-gray-600 dark:text-gray-400 mr-2">Categories:</span>
-            
             {/* Core Status Categories - Always Present */}
             <button 
-              onClick={() => addFilter('Open')}
-              className="px-3 py-1 text-sm bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-full hover:bg-green-200 dark:hover:bg-green-900/50 transition-colors font-medium"
+              onClick={() => addFilter('open')}
+              className={`px-3 py-1 text-sm rounded-full transition-colors font-medium ${
+                activeFilters.includes('open') 
+                  ? 'bg-green-200 dark:bg-green-800 text-green-800 dark:text-green-200' 
+                  : 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-900/50'
+              }`}
             >
               Open
             </button>
             <button 
-              onClick={() => addFilter('Close')}
-              className="px-3 py-1 text-sm bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-full hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors font-medium"
+              onClick={() => addFilter('resolved')}
+              className={`px-3 py-1 text-sm rounded-full transition-colors font-medium ${
+                activeFilters.includes('resolved') 
+                  ? 'bg-red-200 dark:bg-red-800 text-red-800 dark:text-red-200' 
+                  : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/50'
+              }`}
             >
-              Close
-            </button>
-            <button 
-              onClick={() => addFilter('Trending')}
-              className="px-3 py-1 text-sm bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 rounded-full hover:bg-orange-200 dark:hover:bg-orange-900/50 transition-colors font-medium"
-            >
-              Trending
+              Resolved
             </button>
             
             {/* Divider */}
@@ -1211,26 +1172,52 @@ export function MarketOverview({ onAddFilterRef }: MarketOverviewProps = {}) {
             
             {/* Additional Topic Categories */}
             <button 
-              onClick={() => addFilter('Sports')}
-              className="px-3 py-1 text-sm bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors"
+              onClick={() => addFilter('sports')}
+              className={`px-3 py-1 text-sm rounded-full transition-colors ${
+                activeFilters.includes('sports') 
+                  ? 'bg-blue-200 dark:bg-blue-800 text-blue-800 dark:text-blue-200' 
+                  : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/50'
+              }`}
             >
               Sports
             </button>
             <button 
-              onClick={() => addFilter('Politics')}
-              className="px-3 py-1 text-sm bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-full hover:bg-purple-200 dark:hover:bg-purple-900/50 transition-colors"
+              onClick={() => addFilter('political')}
+              className={`px-3 py-1 text-sm rounded-full transition-colors ${
+                activeFilters.includes('political') 
+                  ? 'bg-purple-200 dark:bg-purple-800 text-purple-800 dark:text-purple-200' 
+                  : 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 hover:bg-purple-200 dark:hover:bg-purple-900/50'
+              }`}
             >
               Politics
             </button>
             <button 
-              onClick={() => addFilter('Technology')}
-              className="px-3 py-1 text-sm bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded-full hover:bg-indigo-200 dark:hover:bg-indigo-900/50 transition-colors"
+              onClick={() => addFilter('technology')}
+              className={`px-3 py-1 text-sm rounded-full transition-colors ${
+                activeFilters.includes('technology') 
+                  ? 'bg-indigo-200 dark:bg-indigo-800 text-indigo-800 dark:text-indigo-200' 
+                  : 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-200 dark:hover:bg-indigo-900/50'
+              }`}
             >
               Technology
             </button>
             <button 
-              onClick={() => addFilter('Economics')}
-              className="px-3 py-1 text-sm bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 rounded-full hover:bg-yellow-200 dark:hover:bg-yellow-900/50 transition-colors"
+              onClick={() => addFilter('crypto')}
+              className={`px-3 py-1 text-sm rounded-full transition-colors ${
+                activeFilters.includes('crypto') 
+                  ? 'bg-yellow-200 dark:bg-yellow-800 text-yellow-800 dark:text-yellow-200' 
+                  : 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 hover:bg-yellow-200 dark:hover:bg-yellow-900/50'
+              }`}
+            >
+              Crypto
+            </button>
+            <button 
+              onClick={() => addFilter('economics')}
+              className={`px-3 py-1 text-sm rounded-full transition-colors ${
+                activeFilters.includes('economics') 
+                  ? 'bg-yellow-200 dark:bg-yellow-800 text-yellow-800 dark:text-yellow-200' 
+                  : 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 hover:bg-yellow-200 dark:hover:bg-yellow-900/50'
+              }`}
             >
               Economics
             </button>
@@ -1309,20 +1296,20 @@ export function MarketOverview({ onAddFilterRef }: MarketOverviewProps = {}) {
             </div>
           ) : (
             // Only render actual ConditionCard after status loading is complete
-            paginatedConditions.map((condition) => (
+            allConditions.map((condition) => (
               <ConditionCard
                 key={condition.conditionId}
                 condition={condition}
                 markets={markets} // Pass markets data
                 onTradeClick={handleTradeClick}
                 preloadedResolved={resolvedMap[condition.conditionId]}
-                loadingOutcome={loadingOutcome}
+                loadingOutcome={balanceLoadingOutcome}
               />
             ))
           )}
         </div>
         
-        {paginatedConditions.length === 0 && allConditions.length > 0 && (
+        {allConditions.length === 0 && statusesLoaded && (
           <div className="text-center py-8 text-gray-500">
             <div className="mb-2">No markets match your current filters</div>
             {clearFilters && (
