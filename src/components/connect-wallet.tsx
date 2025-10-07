@@ -1,8 +1,10 @@
 'use client'
 
+import { useState } from 'react'
 import { useAccount, useConnect, useDisconnect, useChainId } from 'wagmi'
 import { Button } from '@/components/ui/button'
 import { NETWORK_CONFIG, getChainName } from '@/lib/config'
+import { UserDashboard } from '@/components/user-dashboard'
 
 const SUPPORTED_CHAINS = NETWORK_CONFIG.SUPPORTED_CHAINS
 
@@ -11,48 +13,68 @@ export function ConnectWallet() {
   const { connect, connectors, isPending } = useConnect()
   const { disconnect } = useDisconnect()
   const chainId = useChainId()
+  const [isDashboardOpen, setIsDashboardOpen] = useState(false)
 
   const isWrongNetwork = isConnected && !SUPPORTED_CHAINS.includes(chainId)
 
   if (isConnected && address) {
     return (
-      <div className="bg-white rounded-xl shadow-lg border p-6 max-w-md mx-auto">
-        <div className="text-center space-y-4">
-          <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto">
-            <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-          </div>
-          
-          <div>
-            <h3 className="text-lg font-semibold text-gray-900">Wallet Connected</h3>
-            <p className="text-sm text-gray-600 font-mono bg-gray-100 px-3 py-1 rounded-md mt-2">
-              {address.slice(0, 8)}...{address.slice(-6)}
-            </p>
-          </div>
-
-          <div className="p-3 border-t border-gray-200">
-            <div className="text-sm font-medium text-gray-700 text-center">
-              Network: {getChainName(chainId)}
+      <>
+        <div className="bg-white rounded-xl shadow-lg border p-6 max-w-md mx-auto">
+          <div className="text-center space-y-4">
+            <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto">
+              <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
             </div>
-            {isWrongNetwork && (
-              <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded-lg">
-                <p className="text-xs text-yellow-800">
-                  Unsupported network. Please switch to a supported network in your wallet.
-                </p>
-              </div>
-            )}
-          </div>
+            
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900">Wallet Connected</h3>
+              <p className="text-sm text-gray-600 font-mono bg-gray-100 px-3 py-1 rounded-md mt-2">
+                {address.slice(0, 8)}...{address.slice(-6)}
+              </p>
+            </div>
 
-          <Button
-            onClick={() => disconnect()}
-            variant="outline"
-            className="w-full"
-          >
-            Disconnect Wallet
-          </Button>
+            <div className="p-3 border-t border-gray-200">
+              <div className="text-sm font-medium text-gray-700 text-center">
+                Network: {getChainName(chainId)}
+              </div>
+              {isWrongNetwork && (
+                <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <p className="text-xs text-yellow-800">
+                    Unsupported network. Please switch to a supported network in your wallet.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Button
+                onClick={() => setIsDashboardOpen(true)}
+                className="w-full bg-blue-600 hover:bg-blue-700"
+              >
+                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+                Open Dashboard
+              </Button>
+
+              <Button
+                onClick={() => disconnect()}
+                variant="outline"
+                className="w-full"
+              >
+                Disconnect Wallet
+              </Button>
+            </div>
+          </div>
         </div>
-      </div>
+        
+        <UserDashboard 
+          isOpen={isDashboardOpen}
+          onClose={() => setIsDashboardOpen(false)}
+        />
+      </>
     )
   }
 
