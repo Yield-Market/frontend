@@ -6,8 +6,6 @@ import { Button } from '@/components/ui/button'
 import { NETWORK_CONFIG, getChainName } from '@/lib/config'
 import { UserDashboard } from '@/components/user-dashboard'
 
-const SUPPORTED_CHAINS = NETWORK_CONFIG.SUPPORTED_CHAINS
-
 export function ConnectWallet() {
   const { address, isConnected } = useAccount()
   const { connect, connectors, isPending } = useConnect()
@@ -15,7 +13,8 @@ export function ConnectWallet() {
   const chainId = useChainId()
   const [isDashboardOpen, setIsDashboardOpen] = useState(false)
 
-  const isWrongNetwork = isConnected && !SUPPORTED_CHAINS.includes(chainId)
+  const supportedChains = NETWORK_CONFIG.SUPPORTED_CHAINS
+  const isWrongNetwork = isConnected && !supportedChains.includes(chainId)
 
   if (isConnected && address) {
     return (

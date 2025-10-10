@@ -28,23 +28,28 @@ export const API_CONFIG = {
 
 // Network Configuration
 export const NETWORK_CONFIG = {
-  // Supported Chain IDs
-  SUPPORTED_CHAINS: [137, 80002], // Polygon Mainnet, Amoy Testnet
+  // Parse supported chains from environment variables
+  get SUPPORTED_CHAINS(): number[] {
+    const chains = process.env.NEXT_PUBLIC_SUPPORTED_CHAINS || '137,80002'
+    return chains.split(',').map(id => parseInt(id.trim(), 10)).filter(id => !isNaN(id))
+  },
   
   // RPC URLs for each network
   RPC_URLS: {
+    1337: process.env.NEXT_PUBLIC_LOCALHOST_RPC_URL || 'http://localhost:8545',  // Local development
     137: process.env.NEXT_PUBLIC_POLYGON_RPC_URL || 'https://polygon-mainnet.g.alchemy.com/v2/_N_znMIMAmFWB4HOvD6xgdl_PSUfZSJU',
     80002: process.env.NEXT_PUBLIC_AMOY_RPC_URL || 'https://rpc-amoy.polygon.technology',
   },
   
   // Chain name mapping
   CHAIN_NAMES: {
+    1337: 'Localhost',
     137: 'Polygon Mainnet',
     80002: 'Polygon Amoy',
   },
   
-  // Default chain ID - Use Polygon Mainnet
-  DEFAULT_CHAIN_ID: parseInt(process.env.NEXT_PUBLIC_CHAIN_ID || '137'),
+  // Default chain ID - Use environment variable or fallback
+  DEFAULT_CHAIN_ID: parseInt(process.env.NEXT_PUBLIC_DEFAULT_CHAIN_ID || '137'),
 } as const
 
 // Get RPC URL by chain ID
@@ -59,6 +64,13 @@ export function getChainName(chainId: number): string {
 
 // Contract Address Configuration - Grouped by Network
 export const CONTRACT_ADDRESSES = {
+  // Localhost/Development (1337)
+  1337: {
+    USDC: process.env.NEXT_PUBLIC_LOCALHOST_USDC_ADDRESS || '0x5FbDB2315678afecb367f032d93F642f64180aa3',
+    CONDITIONAL_TOKENS: process.env.NEXT_PUBLIC_LOCALHOST_CONDITIONAL_TOKENS_ADDRESS || '0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512',
+    AAVE_STRATEGY: process.env.NEXT_PUBLIC_LOCALHOST_AAVE_STRATEGY_ADDRESS || '0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0',
+  },
+  
   // Polygon Mainnet (137)
   137: {
     USDC: process.env.NEXT_PUBLIC_USDC_ADDRESS || '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174',
@@ -91,7 +103,11 @@ export function getContractAddress(chainId: number, contractName: keyof typeof C
     return chainAddresses[contractName as keyof typeof chainAddresses] as string
   }
   
-  // Fallback to default address (Polygon Mainnet)
+  // Fallback to localhost for development, then to Polygon Mainnet
+  if (chainId === 1337 && CONTRACT_ADDRESSES[1337] && contractName in CONTRACT_ADDRESSES[1337]) {
+    return CONTRACT_ADDRESSES[1337][contractName as keyof typeof CONTRACT_ADDRESSES[1337]] as string
+  }
+  
   return CONTRACT_ADDRESSES[137][contractName] || CONTRACT_ADDRESSES.ZERO_ADDRESS
 }
 
