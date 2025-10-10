@@ -1,11 +1,13 @@
 'use client'
 
-import { useAccount } from 'wagmi'
+import { useState } from 'react'
+import { useAccount, useDisconnect, useChainId } from 'wagmi'
 import { useMarketBalances } from '@/hooks/useMarketBalances'
 import { useUserData } from '@/hooks/useUserData'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { MarketCategory } from '@/types'
+import { getChainName } from '@/lib/config'
 
 interface UserDashboardProps {
   isOpen: boolean
@@ -14,6 +16,9 @@ interface UserDashboardProps {
 
 export function UserDashboard({ isOpen, onClose }: UserDashboardProps) {
   const { address } = useAccount()
+  const { disconnect } = useDisconnect()
+  const chainId = useChainId()
+  const [copied, setCopied] = useState(false)
   const balances = useMarketBalances()
   const { userInfo, userPositions, loading, error, refetch } = useUserData()
 
@@ -30,6 +35,23 @@ export function UserDashboard({ isOpen, onClose }: UserDashboardProps) {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
     }).format(num)
+  }
+
+  const handleCopyAddress = async () => {
+    if (address) {
+      try {
+        await navigator.clipboard.writeText(address)
+        setCopied(true)
+        setTimeout(() => setCopied(false), 2000)
+      } catch (error) {
+        console.error('Failed to copy address:', error)
+      }
+    }
+  }
+
+  const handleDisconnect = () => {
+    disconnect()
+    onClose()
   }
 
   // 只有在 isOpen 为 true 时才渲染 dashboard
@@ -81,9 +103,32 @@ export function UserDashboard({ isOpen, onClose }: UserDashboardProps) {
           
           {address && (
             <div className="mt-2">
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                Wallet: <span className="font-mono">{formatAddress(address)}</span>
-              </p>
+              <div className="flex items-center justify-between bg-gray-50 dark:bg-gray-800 rounded-lg p-2">
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Wallet: <span className="font-mono text-gray-900 dark:text-white">{formatAddress(address)}</span>
+                </p>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                    {getChainName(chainId)}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleCopyAddress}
+                    className="h-6 w-6 p-0 hover:bg-gray-200 dark:hover:bg-gray-700"
+                  >
+                    {copied ? (
+                      <svg className="h-3 w-3 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    ) : (
+                      <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                      </svg>
+                    )}
+                  </Button>
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -281,6 +326,17 @@ export function UserDashboard({ isOpen, onClose }: UserDashboardProps) {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                   </svg>
                   {loading ? 'Refreshing...' : 'Refresh Data'}
+                </Button>
+                
+                <Button 
+                  variant="outline" 
+                  className="w-full text-red-600 dark:text-red-400 border-red-200 dark:border-red-800 hover:bg-red-50 dark:hover:bg-red-900/20" 
+                  onClick={handleDisconnect}
+                >
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                  </svg>
+                  Disconnect Wallet
                 </Button>
               </div>
             </>
