@@ -25,7 +25,7 @@ function MarketContent() {
             <div className="flex-1"></div>
             <div className="flex-2 flex justify-center">
               <h1 className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-[#6495ed] dark:to-[#87ceeb] bg-clip-text text-transparent whitespace-nowrap">
-                Predict and Yield In Yield Market
+                Predict In Yield Market
               </h1>
             </div>
             <div className="flex-1 flex justify-end items-center">
