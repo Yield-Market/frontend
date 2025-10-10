@@ -4,8 +4,6 @@ import { useReadContract } from 'wagmi'
 import { formatUnits } from 'viem'
 import { useState, useEffect } from 'react'
 import { YM_VAULT_ABI } from '@/lib/abis'
-// contracts.ts removed; addresses are sourced from markets-config.ts
-import { getAllMarkets } from '@/lib/markets-config'
 
 interface MarketStats {
   volume: number      // Placeholder: returns yielding (real volume calculated by idle+yielding in component)
@@ -15,7 +13,7 @@ interface MarketStats {
   error?: string
 }
 
-export function useMarketStats(conditionId?: string): MarketStats {
+export function useMarketStats(conditionId?: string, enabled: boolean = true, vaultAddress?: string): MarketStats {
   // Cache for previous data
   const [cachedData, setCachedData] = useState<{
     volume: number
@@ -25,17 +23,15 @@ export function useMarketStats(conditionId?: string): MarketStats {
   // const chainId = useChainId() // Removed unused
   
   // Get contract addresses
-  // const targetChainId = chainId || 31337 // Use 31337 as default for local development
-  // Read from markets-config instead of global vault
-  const marketFromCfg = getAllMarkets().find(m => m.conditionId?.toLowerCase?.() === (conditionId || '').toLowerCase())
-  const ymVaultAddress = marketFromCfg?.ymVaultAddress || '0x0000000000000000000000000000000000000000'
+  // Use vault address from parameter instead of markets-config
+  const ymVaultAddress = vaultAddress || '0x0000000000000000000000000000000000000000'
 
   // Query YM Vault totalMatched (actual matched USDC amount)
   const { data: totalMatched, error: matchedError, isLoading: matchedLoading } = useReadContract({
     address: ymVaultAddress as `0x${string}`,
     abi: YM_VAULT_ABI,
     functionName: 'totalMatched',
-    query: { enabled: !!ymVaultAddress }
+    query: { enabled: !!ymVaultAddress && enabled }
   })
 
   const loading = matchedLoading

@@ -242,9 +242,15 @@ function ConditionCard({ condition, markets, onTradeClick, preloadedResolved, lo
   const { } = useMarketOdds(condition.conditionId)
 
   // Get market stats from YM: volume = idle + yielding (per requirement)
-  const { volume, yielding, loading: statsLoading, error: statsError } = useMarketStats(condition.conditionId)
   // YES/NO current prices from Polymarket: prefer slug from API data if available
   const marketFromApi = markets?.find(m => (m.id || m.slug) === condition.conditionId)
+  
+  // Use vault_address from API response instead of vaultAddress from config
+  const apiVaultAddress = marketFromApi?.vault_address
+  const shouldQueryStats = !!apiVaultAddress && !/^0x0{40}$/i.test(apiVaultAddress as string)
+  
+  const { volume, yielding, loading: statsLoading, error: statsError } = useMarketStats(condition.conditionId, shouldQueryStats, apiVaultAddress)
+  
   const slugForPM = marketFromApi?.slug || condition.conditionId
   const { yesPrice, noPrice, volume: pmVolume } = usePolymarketData(slugForPM, 60000, !!marketFromApi?.slug)
   const { isResolved, vaultAddress } = useVaultResolution(condition.conditionId)
@@ -269,7 +275,8 @@ function ConditionCard({ condition, markets, onTradeClick, preloadedResolved, lo
   
   // Use real market stats from contract instead of position balances
   // idle uses Polymarket's volumeNum, yielding uses contract totalMatched
-  const vaultMissing = !vaultAddress || /^0x0{40}$/i.test(vaultAddress as string)
+  // Check if vault_address from API is empty (0x0000000...) to determine if yielding/idle should be displayed
+  const vaultMissing = !apiVaultAddress || /^0x0{40}$/i.test(apiVaultAddress as string)
   const idleDisplay = pmVolume !== undefined ? formatValue(pmVolume) : (statsLoading ? '...' : formatValue(0))
   const yieldingDisplay = (vaultMissing || statsError) ? '—' : (statsLoading ? '...' : formatValue(yielding))
   const includeYielding = !vaultMissing && !statsError
@@ -330,16 +337,21 @@ function ConditionCard({ condition, markets, onTradeClick, preloadedResolved, lo
                     <span className="font-medium text-gray-900 dark:text-[#e0e0e0]">{volumeDisplayWithDollar}</span>
                     <span className="text-xs text-gray-500 dark:text-[#a0a0a0]">volume</span>
                   </div>
-                  <div className="flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 bg-green-400 rounded-full"></span>
-                    <span className="font-medium text-gray-700 dark:text-[#e0e0e0]">{yieldingDisplayWithDollar}</span>
-                    <span className="text-xs text-gray-500 dark:text-[#a0a0a0]">yielding</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 bg-gray-400 rounded-full"></span>
-                    <span className="font-medium text-gray-700 dark:text-[#e0e0e0]">{idleDisplayWithDollar}</span>
-                    <span className="text-xs text-gray-500 dark:text-[#a0a0a0]">idle</span>
-                  </div>
+                  {/* Only show yielding and idle if vault_address is not empty */}
+                  {!vaultMissing && (
+                    <>
+                      <div className="flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 bg-green-400 rounded-full"></span>
+                        <span className="font-medium text-gray-700 dark:text-[#e0e0e0]">{yieldingDisplayWithDollar}</span>
+                        <span className="text-xs text-gray-500 dark:text-[#a0a0a0]">yielding</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 bg-gray-400 rounded-full"></span>
+                        <span className="font-medium text-gray-700 dark:text-[#e0e0e0]">{idleDisplayWithDollar}</span>
+                        <span className="text-xs text-gray-500 dark:text-[#a0a0a0]">idle</span>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
