@@ -12,6 +12,8 @@ import { getAllMarkets } from '@/lib/markets-config'
 import { useVaultResolution } from '@/hooks/useVaultResolution'
 import { SafeAddressCache } from '@/lib/safe-cache'
 import { logger } from '@/lib/logger'
+import { MarketsApi } from '@/generated/api/src/apis/MarketsApi'
+import { Configuration } from '@/generated/api/src/runtime'
 // Removed unused imports
 
 interface TradingModalProps {
@@ -23,7 +25,6 @@ interface TradingModalProps {
   onConfirmTrade: (amount: string, outcome: 'YES' | 'NO') => void
   isTransacting?: boolean
   marketUuid?: string // Changed: this is the market UUID, not condition ID
-  positionId?: string
   apiVaultAddress?: string // Add vault address from API
 }
 
@@ -36,7 +37,6 @@ export function TradingModal({
   onConfirmTrade,
   isTransacting = false,
   marketUuid, // Changed: this is the market UUID
-  positionId,
   apiVaultAddress // Add new prop
 }: TradingModalProps) {
   const { address, isConnected } = useAccount()
@@ -51,32 +51,43 @@ export function TradingModal({
   const [isYmBalanceLoading, setIsYmBalanceLoading] = useState(false)
   const [paymentAsset, setPaymentAsset] = useState<'USDC' | 'YES_TOKEN' | 'NO_TOKEN'>('YES_TOKEN')
   
-  // Add state for condition ID from backend
+  // Add state for condition ID and position IDs from backend API
   const [conditionId, setConditionId] = useState<string | null>(null)
+  const [yesPositionId, setYesPositionId] = useState<string | null>(null)
+  const [noPositionId, setNoPositionId] = useState<string | null>(null)
 
-  // Function to fetch market data (including condition ID) from backend API
+  // Function to fetch market data (including condition ID and position IDs) from backend API
   const fetchMarketData = useCallback(async (uuid: string): Promise<string | null> => {
     try {
       console.log('[TM][MarketData] Fetching market data for UUID:', uuid)
       
+      // Create API client
       const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080'
-      const response = await fetch(`${apiBaseUrl}/api/v1/markets/${uuid}`)
+      const configuration = new Configuration({
+        basePath: apiBaseUrl,
+      })
+      const marketsApi = new MarketsApi(configuration)
       
-      if (!response.ok) {
-        console.error('[TM][MarketData] API error:', response.status, response.statusText)
-        return null
-      }
-      
-      const marketData = await response.json()
+      // Fetch market details using generated API client
+      const marketData = await marketsApi.apiV1MarketsIdGet({ id: uuid })
       console.log('[TM][MarketData] API response:', marketData)
       
-      // Extract condition ID from the API response
-      const conditionId = marketData.condition_id || marketData.conditionId || marketData.id
+      // Extract condition ID and position IDs from the API response
+      const conditionId = marketData.conditionId
+      const yesTokenId = marketData.clobTokenIdYes
+      const noTokenId = marketData.clobTokenIdNo
       
-      console.log('[TM][MarketData] Condition ID from API:', conditionId)
+      console.log('[TM][MarketData] Extracted data:')
+      console.log('[TM][MarketData] - Condition ID:', conditionId)
+      console.log('[TM][MarketData] - YES Position ID:', yesTokenId)
+      console.log('[TM][MarketData] - NO Position ID:', noTokenId)
       
-      setConditionId(conditionId)
-      return conditionId
+      // Update state
+      setConditionId(conditionId || null)
+      setYesPositionId(yesTokenId || null)
+      setNoPositionId(noTokenId || null)
+      
+      return conditionId || null
     } catch (error) {
       console.error('[TM][MarketData] Error fetching market data:', error)
       return null
@@ -207,11 +218,12 @@ export function TradingModal({
   // Helper: read best balance across EOA + safes for current positionId from conditional tokens
   const readBestPositionBalance = useCallback(async (): Promise<bigint | undefined> => {
     try {
-      console.log('[TM][CTBalance][START] Starting balance query for YES tokens')
+      console.log('[TM][CTBalance][START] Starting balance query for tokens')
       console.log('[TM][CTBalance][PARAMS] marketUuid:', marketUuid)
       console.log('[TM][CTBalance][PARAMS] conditionId:', conditionId)
       console.log('[TM][CTBalance][PARAMS] selectedOutcome:', selectedOutcome)
-      console.log('[TM][CTBalance][PARAMS] positionId (old):', positionId)
+      console.log('[TM][CTBalance][PARAMS] yesPositionId:', yesPositionId)
+      console.log('[TM][CTBalance][PARAMS] noPositionId:', noPositionId)
       console.log('[TM][CTBalance][PARAMS] conditionalTokensAddress:', conditionalTokensAddress)
       console.log('[TM][CTBalance][PARAMS] userAddress:', address)
       
@@ -232,33 +244,17 @@ export function TradingModal({
         return 0n
       }
       
-      // Calculate position ID from condition ID
-      // Position ID = keccak256(abi.encodePacked(conditionId, collectionId, indexOfOutcome))
-      // For YES/NO markets: YES = index 0, NO = index 1
-      const outcomeIndex = selectedOutcome === 'YES' ? 0 : 1
-      console.log('[TM][CTBalance][POSITION] Calculating position ID for outcome:', selectedOutcome, 'index:', outcomeIndex)
+      // Use position ID from API based on selected outcome
+      const currentPositionId = selectedOutcome === 'YES' ? yesPositionId : noPositionId
       
-      // For now, let's try using the position ID calculation or fall back to the provided positionId
-      let calculatedPositionId: string
-      try {
-        // Import keccak256 and other utilities
-        const { keccak256, encodePacked } = await import('viem')
-        
-        // Collection ID is typically 0x0 for simple YES/NO markets
-        const collectionId = '0x0000000000000000000000000000000000000000000000000000000000000000'
-        
-        // Calculate position ID
-        const encoded = encodePacked(
-          ['bytes32', 'bytes32', 'uint256'],
-          [conditionId as `0x${string}`, collectionId as `0x${string}`, BigInt(outcomeIndex)]
-        )
-        calculatedPositionId = keccak256(encoded)
-        
-        console.log('[TM][CTBalance][POSITION] Calculated position ID:', calculatedPositionId)
-      } catch (e) {
-        console.log('[TM][CTBalance][POSITION] Failed to calculate position ID, using provided positionId:', e)
-        calculatedPositionId = positionId || ''
+      if (!currentPositionId) {
+        console.log('[TM][CTBalance][ERROR] No position ID available for outcome:', selectedOutcome)
+        setBestPositionBal(0n)
+        setUserBalance('0.00')
+        return 0n
       }
+      
+      console.log('[TM][CTBalance][POSITION] Using position ID from API:', currentPositionId)
 
       const holders: string[] = [address || '', ...await fetchSafesForOwner(address)].filter(Boolean)
       console.log('[TM][CTBalance][HOLDERS] Found holders:', holders)
@@ -272,18 +268,18 @@ export function TradingModal({
         try {
           console.log('[TM][CTBalance][QUERY] Querying holder:', h)
           console.log('[TM][CTBalance][QUERY] Contract address:', ctf)
-          console.log('[TM][CTBalance][QUERY] Position ID:', calculatedPositionId)
-          console.log('[TM][CTBalance][QUERY] Position ID as BigInt:', BigInt(calculatedPositionId))
+          console.log('[TM][CTBalance][QUERY] Position ID:', currentPositionId)
+          console.log('[TM][CTBalance][QUERY] Position ID as BigInt:', BigInt(currentPositionId))
           
           // Query conditional tokens contract's balanceOf function
           const b: bigint = await publicClient.readContract({
             address: ctf,
             abi: CONDITIONAL_TOKENS_ABI,
             functionName: 'balanceOf',
-            args: [h as `0x${string}`, BigInt(calculatedPositionId)]
+            args: [h as `0x${string}`, BigInt(currentPositionId)]
           }) as unknown as bigint
 
-          console.log('[TM][CTBalance][RESULT] Holder:', h, 'Position ID:', calculatedPositionId, 'Raw balance:', b.toString(), 'Formatted balance:', formatUnits(b, 6))
+          console.log('[TM][CTBalance][RESULT] Holder:', h, 'Position ID:', currentPositionId, 'Raw balance:', b.toString(), 'Formatted balance:', formatUnits(b, 6))
 
           if (b > best.b) {
             console.log('[TM][CTBalance][BEST] New best balance found - Holder:', h, 'Balance:', b.toString())
@@ -301,7 +297,7 @@ export function TradingModal({
       setUserBalance(formattedBalance)
       console.log('[TM][CTBalance][FINAL] Final results:')
       console.log('[TM][CTBalance][FINAL] - Condition ID:', conditionId)
-      console.log('[TM][CTBalance][FINAL] - Calculated position ID:', calculatedPositionId)
+      console.log('[TM][CTBalance][FINAL] - Position ID from API:', currentPositionId)
       console.log('[TM][CTBalance][FINAL] - Best holder:', best.h || 'None')
       console.log('[TM][CTBalance][FINAL] - Best balance (raw):', best.b.toString())
       console.log('[TM][CTBalance][FINAL] - Best balance (formatted):', formattedBalance)
@@ -315,7 +311,7 @@ export function TradingModal({
       setIsBalanceLoading(false)
       console.log('[TM][CTBalance][END] Balance query completed')
     }
-  }, [publicClient, positionId, address, fetchSafesForOwner, conditionalTokensAddress, lastBalanceQuery, bestPositionBal, conditionId, selectedOutcome, marketUuid]) // Updated dependencies
+  }, [publicClient, address, fetchSafesForOwner, conditionalTokensAddress, lastBalanceQuery, bestPositionBal, conditionId, selectedOutcome, marketUuid, yesPositionId, noPositionId]) // Updated dependencies
 
   // Format balance display, limit decimal places
   const formatBalance = (balance: string | number): string => {
@@ -380,7 +376,8 @@ export function TradingModal({
     console.log('[TM][Balance] - selectedOutcome:', selectedOutcome) 
     console.log('[TM][Balance] - marketUuid:', marketUuid)
     console.log('[TM][Balance] - conditionId:', conditionId)
-    console.log('[TM][Balance] - positionId:', positionId)
+    console.log('[TM][Balance] - yesPositionId:', yesPositionId)
+    console.log('[TM][Balance] - noPositionId:', noPositionId)
     console.log('[TM][Balance] - vaultAddress:', vaultAddress)
     
     try {
@@ -390,9 +387,9 @@ export function TradingModal({
       setIsBalanceLoading(true)
       setIsYmBalanceLoading(true)
       
-      // Only query if we have the condition ID
-      if (conditionId) {
-        console.log('[TM][Balance] Condition ID available, querying balances')
+      // Only query if we have the condition ID and position IDs
+      if (conditionId && yesPositionId && noPositionId) {
+        console.log('[TM][Balance] Condition ID and position IDs available, querying balances')
         ;(async () => {
           // Query both balances simultaneously
           await Promise.all([
@@ -401,10 +398,10 @@ export function TradingModal({
           ])
         })()
       } else {
-        console.log('[TM][Balance] Waiting for condition ID...')
+        console.log('[TM][Balance] Waiting for condition ID and position IDs...')
       }
     } catch {}
-  }, [isOpen, selectedOutcome, marketUuid, positionId, vaultAddress, conditionId, readBestPositionBalance, readYmBalance]) // Added all dependencies
+  }, [isOpen, selectedOutcome, marketUuid, vaultAddress, conditionId, yesPositionId, noPositionId, readBestPositionBalance, readYmBalance]) // Updated dependencies
 
   // Calculate expected payout using real odds
   const expectedPayout = inputAmount ? (parseFloat(inputAmount) * displayOdds).toFixed(2) : '0.00'
@@ -481,7 +478,7 @@ export function TradingModal({
       return
     }
 
-    if (!conditionId || !positionId) {
+    if (!conditionId || !yesPositionId || !noPositionId) {
       setTradeError('Missing market information')
       return
     }
@@ -542,7 +539,8 @@ export function TradingModal({
         let positionIdBig: bigint | undefined
         let balanceBefore: bigint | undefined
         try {
-          positionIdBig = BigInt(positionId as string)
+          const currentPositionId = selectedOutcome === 'YES' ? yesPositionId : noPositionId
+          positionIdBig = BigInt(currentPositionId as string)
           balanceBefore = await publicClient!.readContract({
             address: conditionalTokensAddress as `0x${string}`,
             abi: CONDITIONAL_TOKENS_ABI,
@@ -781,6 +779,7 @@ export function TradingModal({
         setTradeStep('transferring')
 
         try {
+          const currentPositionId = selectedOutcome === 'YES' ? yesPositionId : noPositionId
           await writeContractAsync({
             address: conditionalTokensAddress as `0x${string}`,
             abi: CONDITIONAL_TOKENS_ABI,
@@ -788,7 +787,7 @@ export function TradingModal({
             args: [
               address,
               (ymVaultAddress as `0x${string}`),
-              BigInt(positionId),
+              BigInt(currentPositionId as string),
               parseUnits(inputAmount, 6),
               '0x'
             ]
@@ -803,8 +802,9 @@ export function TradingModal({
         setCompletionContext('deposit')
       } else {
         // paymentAsset === 'YES_TOKEN' → directly deposit to vault
-        if (!positionId) {
-          setTradeError('Missing positionId for YES token')
+        const currentPositionId = selectedOutcome === 'YES' ? yesPositionId : noPositionId
+        if (!currentPositionId) {
+          setTradeError('Missing positionId for token')
           setTradeStep('error')
           return
         }
@@ -835,7 +835,7 @@ export function TradingModal({
                 address: conditionalTokensAddress as `0x${string}`,
                 abi: CONDITIONAL_TOKENS_ABI,
                 functionName: 'balanceOf',
-                args: [h as `0x${string}`, BigInt(positionId)]
+                args: [h as `0x${string}`, BigInt(currentPositionId)]
               }) as unknown as bigint
               if (b > best.b) best = { h, b }
             } catch {}
@@ -895,7 +895,7 @@ export function TradingModal({
               args: [
                 address,
                 toVault,
-                BigInt(positionId),
+                BigInt(currentPositionId),
                 transferAmount,
                 '0x'
               ]
@@ -908,7 +908,7 @@ export function TradingModal({
             const data = (await import('viem')).encodeFunctionData({
               abi: CONDITIONAL_TOKENS_ABI,
               functionName: 'safeTransferFrom',
-              args: [fromHolder, toVault, BigInt(positionId), transferAmount, '0x']
+              args: [fromHolder, toVault, BigInt(currentPositionId), transferAmount, '0x']
             }) as `0x${string}`
             const SAFE_CALL_OPERATION = 0
             // Build pre-validated signature bytes for msg.sender owner

@@ -1513,10 +1513,6 @@ export function MarketOverview({ onAddFilterRef }: MarketOverviewProps = {}) {
           onConfirmTrade={handleConfirmTrade}
           isTransacting={isTransacting}
           marketUuid={selectedCondition.conditionId}
-          positionId={selectedOutcome === 'YES'
-            ? selectedCondition.positions.find(p => p.outcomeLabel === 'YES')?.positionId
-            : selectedCondition.positions.find(p => p.outcomeLabel === 'NO')?.positionId
-          }
           apiVaultAddress={markets?.find(m => (m.id || m.slug) === selectedCondition.conditionId)?.vault_address}
         />
       )}
