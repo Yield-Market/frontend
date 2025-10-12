@@ -33,7 +33,8 @@ export class SafeAddressCache {
 
     try {
       // Only query Polygon mainnet
-      if (chainId !== 137) {
+      if (chainId !== 137 && chainId !== 1337) {
+        console.log('[error] Safe address fetching is only supported on Polygon mainnet (chainId 137) and localhost (chainId 1337). Current chainId:', chainId)
         return []
       }
 
@@ -42,6 +43,8 @@ export class SafeAddressCache {
         `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://safe-transaction-polygon.safe.global/api/v1/owners/${ownerChecksum}/safes/`)}`, 
         { cache: 'no-store' }
       )
+
+      console.log('Fetching Safe addresses for owner:', owner, 'Response status:', resp.ok)
       
       if (!resp.ok) {
         return []
