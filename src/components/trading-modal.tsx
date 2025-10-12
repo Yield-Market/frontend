@@ -106,9 +106,9 @@ export function TradingModal({
   const [lastBalanceQuery, setLastBalanceQuery] = useState<number>(0)
 
   // Get real odds from contract (fallback) - removed unused variables
-  const { loading: oddsLoading } = useMarketOdds(conditionId || undefined)
+  useMarketOdds(conditionId || undefined)
   // Get Polymarket outcome prices as primary source
-  const { yesPrice, noPrice, loading: pmLoading } = usePolymarketData(conditionId || undefined, 60000)
+  const { yesPrice, noPrice } = usePolymarketData(conditionId || undefined, 60000)
   const selectedPrice = selectedOutcome === 'YES' ? yesPrice : noPrice
   const displayOdds = selectedPrice && selectedPrice > 0 ? (1 / selectedPrice) : 0
   // Fixed APY for yield after deposit - no longer dynamic
@@ -1145,10 +1145,6 @@ export function TradingModal({
           {/* Trade Details */}
           {inputAmount && parseFloat(inputAmount) > 0 && (
             <div className="mt-4 space-y-2 text-sm">
-              <div className="flex justify-between text-gray-600">
-                <span>Current Odds</span>
-                <span>{(pmLoading && oddsLoading) ? '...' : `${displayOdds.toFixed(2)}x`}</span>
-              </div>
               <div className="flex justify-between text-gray-600">
                 <span>Potential Profit</span>
                 <span className="text-green-600">+{potentialProfit} USDC</span>
