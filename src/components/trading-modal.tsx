@@ -24,6 +24,7 @@ interface TradingModalProps {
   isTransacting?: boolean
   conditionId?: string
   positionId?: string
+  apiVaultAddress?: string // Add vault address from API
 }
 
 export function TradingModal({
@@ -35,7 +36,8 @@ export function TradingModal({
   onConfirmTrade,
   isTransacting = false,
   conditionId,
-  positionId
+  positionId,
+  apiVaultAddress // Add new prop
 }: TradingModalProps) {
   const { address, isConnected } = useAccount()
   const publicClient = usePublicClient()
@@ -76,7 +78,9 @@ export function TradingModal({
   // For demo/local, allow using known polygon token addresses; ideally should come from config per chain
   const conditionalTokensAddress = '0x4D97DCd97eC945f40cF65F87097ACe5EA0476045'
   const mockUSDCAddress = marketCfg?.collateralToken || '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174'
-  const { isResolved, yesWon, finalPayoutRatio, vaultAddress } = useVaultResolution(conditionId)
+  const { isResolved, yesWon, finalPayoutRatio } = useVaultResolution(conditionId)
+  // Use vault address from API instead of config
+  const vaultAddress = apiVaultAddress
   logger.debug('TradingModal initialized', { isResolved, vaultAddress, conditionId })
   useEffect(() => {
     // silent init
@@ -634,7 +638,7 @@ export function TradingModal({
         setTradeStep('buying')
 
         const amount = parseUnits(inputAmount, 6)
-        const ymVaultAddress = marketCfg?.ymVaultAddress
+        const ymVaultAddress = vaultAddress
 
         try {
           await writeContractAsync({
@@ -733,13 +737,13 @@ export function TradingModal({
 
         // Check that vault can receive ERC1155 tokens
         try {
-          if (!marketCfg || !marketCfg.ymVaultAddress) {
+          if (!vaultAddress) {
             setTradeStep('error')
-            setTradeError('Missing ymVaultAddress in markets-config.ts')
+            setTradeError('Missing vault address from API')
             return
           }
           const canReceive: boolean = await publicClient!.readContract({
-            address: (marketCfg.ymVaultAddress as `0x${string}`),
+            address: (vaultAddress as `0x${string}`),
             abi: [
               {
                 "inputs": [{ "name": "interfaceId", "type": "bytes4" }],
@@ -761,12 +765,12 @@ export function TradingModal({
 
         setTradeStep('transferring')
         try {
-          if (!marketCfg || !marketCfg.ymVaultAddress) {
+          if (!vaultAddress) {
             setTradeStep('error')
-            setTradeError('Missing ymVaultAddress in markets-config.ts')
+            setTradeError('Missing vault address from API')
             return
           }
-          const toVault = marketCfg.ymVaultAddress as `0x${string}`
+          const toVault = vaultAddress as `0x${string}`
           if (holderType === 'EOA') {
             await writeContractAsync({
               address: conditionalTokensAddress as `0x${string}`,

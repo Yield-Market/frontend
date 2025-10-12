@@ -1517,6 +1517,7 @@ export function MarketOverview({ onAddFilterRef }: MarketOverviewProps = {}) {
             ? selectedCondition.positions.find(p => p.outcomeLabel === 'YES')?.positionId
             : selectedCondition.positions.find(p => p.outcomeLabel === 'NO')?.positionId
           }
+          apiVaultAddress={markets?.find(m => (m.id || m.slug) === selectedCondition.conditionId)?.vault_address}
         />
       )}
 
