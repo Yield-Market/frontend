@@ -253,7 +253,9 @@ function ConditionCard({ condition, markets, onTradeClick, preloadedResolved, lo
   
   const slugForPM = marketFromApi?.slug || condition.conditionId
   const { yesPrice, noPrice, volume: pmVolume } = usePolymarketData(slugForPM, 60000, !!marketFromApi?.slug)
-  const { isResolved, vaultAddress } = useVaultResolution(condition.conditionId)
+  const { isResolved } = useVaultResolution(condition.conditionId)
+  // Use vault address from API response instead of config
+  const vaultAddress = apiVaultAddress
   const { writeContractAsync } = useWriteContract()
   const publicClient = usePublicClient()
   const { address } = useAccount()
