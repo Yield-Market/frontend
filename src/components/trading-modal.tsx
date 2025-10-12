@@ -802,6 +802,68 @@ export function TradingModal({
 
         try {
           const currentPositionId = selectedOutcome === 'YES' ? yesPositionId : noPositionId
+          
+          // Enhanced error checking and logging
+          console.log('[TM][Transfer] Starting transfer with params:')
+          console.log('[TM][Transfer] - from:', address)
+          console.log('[TM][Transfer] - to:', ymVaultAddress)
+          console.log('[TM][Transfer] - tokenId:', currentPositionId)
+          console.log('[TM][Transfer] - amount:', parseUnits(inputAmount, 6).toString())
+          console.log('[TM][Transfer] - conditionalTokensAddress:', conditionalTokensAddress)
+          
+          // Check if user has sufficient balance before transfer
+          if (!currentPositionId) {
+            throw new Error('Missing position ID for selected outcome')
+          }
+          
+          const transferAmount = parseUnits(inputAmount, 6)
+          
+          // Query user's balance before transfer
+          try {
+            const userBalance: bigint = await publicClient!.readContract({
+              address: conditionalTokensAddress as `0x${string}`,
+              abi: CONDITIONAL_TOKENS_ABI,
+              functionName: 'balanceOf',
+              args: [address as `0x${string}`, BigInt(currentPositionId)]
+            }) as unknown as bigint
+            
+            console.log('[TM][Transfer] User balance:', userBalance.toString())
+            console.log('[TM][Transfer] Transfer amount:', transferAmount.toString())
+            
+            if (userBalance < transferAmount) {
+              throw new Error(`Insufficient balance. Have: ${userBalance.toString()}, Need: ${transferAmount.toString()}`)
+            }
+          } catch (balanceError) {
+            console.error('[TM][Transfer] Balance check failed:', balanceError)
+            throw new Error(`Balance check failed: ${balanceError instanceof Error ? balanceError.message : 'Unknown error'}`)
+          }
+          
+          // Check if the vault can receive tokens (implements IERC1155Receiver)
+          try {
+            const canReceive: boolean = await publicClient!.readContract({
+              address: (ymVaultAddress as `0x${string}`),
+              abi: [
+                {
+                  "inputs": [{ "name": "interfaceId", "type": "bytes4" }],
+                  "name": "supportsInterface",
+                  "outputs": [{ "name": "", "type": "bool" }],
+                  "stateMutability": "view",
+                  "type": "function"
+                }
+              ],
+              functionName: 'supportsInterface',
+              args: ['0x4e2312e0'] // IERC1155Receiver
+            }) as unknown as boolean
+            
+            console.log('[TM][Transfer] Vault supports ERC1155Receiver:', canReceive)
+            if (!canReceive) {
+              throw new Error('Vault does not implement ERC1155Receiver interface')
+            }
+          } catch (interfaceError) {
+            console.error('[TM][Transfer] Interface check failed:', interfaceError)
+            // Don't throw here as some contracts might not implement supportsInterface but still work
+          }
+          
           await writeContractAsync({
             address: conditionalTokensAddress as `0x${string}`,
             abi: CONDITIONAL_TOKENS_ABI,
@@ -810,13 +872,31 @@ export function TradingModal({
               address,
               (ymVaultAddress as `0x${string}`),
               BigInt(currentPositionId as string),
-              parseUnits(inputAmount, 6),
+              transferAmount,
               '0x'
             ]
           })
         } catch (e) {
+          console.error('[TM][Transfer] Transfer failed:', e)
           setTradeStep('error')
-          setTradeError(e instanceof Error ? e.message : 'ERC1155 transfer failed')
+          
+          // Enhanced error messaging
+          let errorMessage = 'ERC1155 transfer failed'
+          if (e instanceof Error) {
+            if (e.message.includes('insufficient balance')) {
+              errorMessage = 'Insufficient token balance for transfer'
+            } else if (e.message.includes('not approved')) {
+              errorMessage = 'Token transfer not approved. Please approve the transaction.'
+            } else if (e.message.includes('IERC1155Receiver')) {
+              errorMessage = 'Vault cannot receive ERC1155 tokens'
+            } else if (e.message.includes('Balance check failed')) {
+              errorMessage = e.message
+            } else {
+              errorMessage = `Transfer failed: ${e.message}`
+            }
+          }
+          
+          setTradeError(errorMessage)
           return
         }
 
@@ -832,23 +912,13 @@ export function TradingModal({
         }
         // Convert input to base units (assume 6 decimals to stay consistent with USDC/Polymarket shares)
         const transferAmount = parseUnits(inputAmount, 6)
-        // Optional safety: ensure balance is sufficient (EOA only; Safes handled later)
+        // Reuse the same best-balance detection logic as readBestPositionBalance
         let fromHolder: `0x${string}` = address as `0x${string}`
         let holderType: 'EOA' | 'SAFE' = 'EOA'
         try {
-          // Reuse best-balance detection for the active outcome
-          const holders: string[] = [address || '', ...await (async () => {
-            try {
-              if (chainId !== 137) return []
-              const ownerChecksum = address as `0x${string}`
-              const resp = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(`https://safe-transaction-polygon.safe.global/api/v1/owners/${ownerChecksum}/safes/`)}`, { 
-                cache: 'no-store'
-              })
-              if (!resp.ok) return []
-              const json = await resp.json()
-              return Array.isArray(json?.safes) ? json.safes : []
-            } catch { return [] }
-          })()].filter(Boolean)
+          // Use the same logic as readBestPositionBalance to find the best holder
+          const holders: string[] = [address || '', ...await fetchSafesForOwner(address)].filter(Boolean)
+          console.log('[TM][Transfer] All holders to check:', holders)
 
           let best: { h?: string; b: bigint } = { b: 0n }
           for (const h of holders) {
@@ -859,19 +929,41 @@ export function TradingModal({
                 functionName: 'balanceOf',
                 args: [h as `0x${string}`, BigInt(currentPositionId)]
               }) as unknown as bigint
-              if (b > best.b) best = { h, b }
-            } catch {}
-          }
-          if (best.h) {
-            fromHolder = best.h as `0x${string}`
-            holderType = (fromHolder.toLowerCase() === (address as string).toLowerCase()) ? 'EOA' : 'SAFE'
-            if (best.b < transferAmount) {
-              setTradeStep('error')
-              setTradeError('Insufficient YES token balance for transfer')
-              return
+              
+              console.log('[TM][Transfer] Checking holder:', h, 'balance:', b.toString())
+              if (b > best.b) {
+                console.log('[TM][Transfer] New best holder found:', h, 'balance:', b.toString())
+                best = { h, b }
+              }
+            } catch (e) {
+              console.log('[TM][Transfer] Error checking holder:', h, e)
             }
           }
-        } catch {}
+          
+          console.log('[TM][Transfer] Final best holder:', best.h, 'balance:', best.b.toString())
+          
+          if (best.h && best.b >= transferAmount) {
+            fromHolder = best.h as `0x${string}`
+            holderType = (fromHolder.toLowerCase() === (address as string).toLowerCase()) ? 'EOA' : 'SAFE'
+            
+            console.log('[TM][Transfer] Selected fromHolder:', fromHolder)
+            console.log('[TM][Transfer] Holder type:', holderType)
+            console.log('[TM][Transfer] User EOA address:', address)
+          } else {
+            setTradeStep('error')
+            if (!best.h) {
+              setTradeError('No holder found with tokens')
+            } else {
+              setTradeError(`Insufficient ${selectedOutcome} token balance for transfer. Available: ${formatUnits(best.b, 6)}, Required: ${formatUnits(transferAmount, 6)}`)
+            }
+            return
+          }
+        } catch (e) {
+          console.error('[TM][Transfer] Error in holder detection:', e)
+          setTradeStep('error')
+          setTradeError('Failed to detect token holders')
+          return
+        }
 
         // Check that vault can receive ERC1155 tokens
         try {
@@ -909,13 +1001,40 @@ export function TradingModal({
             return
           }
           const toVault = vaultAddress as `0x${string}`
+          
+          console.log('[TM][TokenTransfer] Starting token transfer:')
+          console.log('[TM][TokenTransfer] - fromHolder:', fromHolder)
+          console.log('[TM][TokenTransfer] - toVault:', toVault)
+          console.log('[TM][TokenTransfer] - tokenId:', currentPositionId)
+          console.log('[TM][TokenTransfer] - amount:', transferAmount.toString())
+          console.log('[TM][TokenTransfer] - holderType:', holderType)
+          
           if (holderType === 'EOA') {
+            // Additional validation for EOA transfers - check the actual fromHolder balance, not user's EOA
+            try {
+              const holderBalance: bigint = await publicClient!.readContract({
+                address: conditionalTokensAddress as `0x${string}`,
+                abi: CONDITIONAL_TOKENS_ABI,
+                functionName: 'balanceOf',
+                args: [fromHolder, BigInt(currentPositionId)]
+              }) as unknown as bigint
+              
+              console.log('[TM][TokenTransfer] Holder balance check:', holderBalance.toString())
+              console.log('[TM][TokenTransfer] From holder address:', fromHolder)
+              if (holderBalance < transferAmount) {
+                throw new Error(`Insufficient holder balance. Holder: ${fromHolder}, Have: ${holderBalance.toString()}, Need: ${transferAmount.toString()}`)
+              }
+            } catch (balanceError) {
+              console.error('[TM][TokenTransfer] Holder balance check failed:', balanceError)
+              throw balanceError
+            }
+            
             await writeContractAsync({
               address: conditionalTokensAddress as `0x${string}`,
               abi: CONDITIONAL_TOKENS_ABI,
               functionName: 'safeTransferFrom',
               args: [
-                address,
+                fromHolder, // Use the actual best holder, not user's address
                 toVault,
                 BigInt(currentPositionId),
                 transferAmount,
@@ -975,8 +1094,26 @@ export function TradingModal({
             deductBalanceAfterSignature(inputAmount)
           }
         } catch (err) {
+          console.error('[TM][TokenTransfer] Transfer failed:', err)
           setTradeStep('error')
-          setTradeError(err instanceof Error ? err.message : 'Transfer failed')
+          
+          // Enhanced error messaging for token transfers
+          let errorMessage = 'Transfer failed'
+          if (err instanceof Error) {
+            if (err.message.includes('insufficient balance') || err.message.includes('Insufficient')) {
+              errorMessage = 'Insufficient token balance for transfer'
+            } else if (err.message.includes('not approved')) {
+              errorMessage = 'Token transfer not approved. Please approve the transaction.'
+            } else if (err.message.includes('threshold')) {
+              errorMessage = 'Safe multi-sig threshold requirements not met'
+            } else if (err.message.includes('IERC1155Receiver')) {
+              errorMessage = 'Recipient cannot receive ERC1155 tokens'
+            } else {
+              errorMessage = `Transfer failed: ${err.message}`
+            }
+          }
+          
+          setTradeError(errorMessage)
           return
         }
         setCompletionContext('deposit')
