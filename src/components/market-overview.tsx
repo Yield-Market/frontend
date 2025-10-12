@@ -1512,7 +1512,7 @@ export function MarketOverview({ onAddFilterRef }: MarketOverviewProps = {}) {
           currentOdds={selectedOutcome === 'YES' ? 1.85 : 2.15}
           onConfirmTrade={handleConfirmTrade}
           isTransacting={isTransacting}
-          conditionId={selectedCondition.conditionId}
+          marketUuid={selectedCondition.conditionId}
           positionId={selectedOutcome === 'YES'
             ? selectedCondition.positions.find(p => p.outcomeLabel === 'YES')?.positionId
             : selectedCondition.positions.find(p => p.outcomeLabel === 'NO')?.positionId
