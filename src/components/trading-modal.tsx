@@ -49,7 +49,7 @@ export function TradingModal({
   const { writeContractAsync } = useWriteContract()
   const { connect, connectors } = useConnect()
   const [inputAmount, setInputAmount] = useState('')
-  const [userBalance, setUserBalance] = useState('0.00')
+  const [userBalance, setUserBalance] = useState('')
   const [isBalanceLoading, setIsBalanceLoading] = useState(false)
   const [ymBalance, setYmBalance] = useState('0.00')
   const [isYmBalanceLoading, setIsYmBalanceLoading] = useState(false)
@@ -238,7 +238,7 @@ export function TradingModal({
   }, [publicClient, vaultAddress, address, selectedOutcome, fetchSafesForOwner]) // Removed unnecessary chainId dependency
 
   // Helper: read best balance across EOA + safes for current positionId from conditional tokens
-  const readBestPositionBalance = useCallback(async (): Promise<bigint | undefined> => {
+  const readBestPositionBalance = useCallback(async (forceRefresh = false): Promise<bigint | undefined> => {
     try {
       console.log('[TM][CTBalance][START] Starting balance query for tokens')
       console.log('[TM][CTBalance][PARAMS] marketUuid:', marketUuid)
@@ -248,21 +248,25 @@ export function TradingModal({
       console.log('[TM][CTBalance][PARAMS] noPositionId:', noPositionId)
       console.log('[TM][CTBalance][PARAMS] conditionalTokensAddress:', conditionalTokensAddress)
       console.log('[TM][CTBalance][PARAMS] userAddress:', address)
+      console.log('[TM][CTBalance][PARAMS] forceRefresh:', forceRefresh)
       
-      // Add debouncing to prevent too frequent queries
-      const now = Date.now()
-      if (now - lastBalanceQuery < 5000) { // 5 seconds debounce
-        console.log('[TM][CTBalance] Debounced query, too soon')
-        return bestPositionBal
+      // Add debouncing to prevent too frequent queries, but allow force refresh
+      if (!forceRefresh) {
+        const now = Date.now()
+        if (now - lastBalanceQuery < 5000) { // 5 seconds debounce
+          console.log('[TM][CTBalance] Debounced query, too soon')
+          return bestPositionBal
+        }
+        setLastBalanceQuery(now)
       }
-      setLastBalanceQuery(now)
 
       setIsBalanceLoading(true)
 
       if (!publicClient || !conditionId) {
         console.log('[TM][CTBalance][ERROR] Missing requirements - publicClient:', !!publicClient, 'conditionId:', conditionId)
         setBestPositionBal(0n)
-        setUserBalance('0.00')
+        // Don't set balance to 0.00 immediately, keep loading state active
+        // setUserBalance('0.00') // Removed
         return 0n
       }
       
@@ -272,7 +276,8 @@ export function TradingModal({
       if (!currentPositionId) {
         console.log('[TM][CTBalance][ERROR] No position ID available for outcome:', selectedOutcome)
         setBestPositionBal(0n)
-        setUserBalance('0.00')
+        // Don't set balance to 0.00 immediately, keep loading state active
+        // setUserBalance('0.00') // Removed
         return 0n
       }
       
@@ -404,7 +409,7 @@ export function TradingModal({
     
     try {
       setPaymentAsset(selectedOutcome === 'YES' ? 'YES_TOKEN' : 'NO_TOKEN')
-      setUserBalance('0.00')
+      // Don't set balance to '0.00' immediately - let loading indicator show instead
       setYmBalance('0.00')
       setIsBalanceLoading(true)
       setIsYmBalanceLoading(true)
@@ -421,9 +426,34 @@ export function TradingModal({
         })()
       } else {
         console.log('[TM][Balance] Waiting for condition ID and position IDs...')
+        // Still keep loading state active until we get the data
       }
     } catch {}
   }, [isOpen, selectedOutcome, marketUuid, vaultAddress, conditionId, yesPositionId, noPositionId, readBestPositionBalance, readYmBalance, setPaymentAsset]) // Updated dependencies
+
+  // Immediately refresh balance when selectedOutcome changes (same as Your Current Holding mechanism)
+  useEffect(() => {
+    if (!isOpen || !isConnected || !address) return
+    
+    console.log('[TM][Balance] selectedOutcome changed, refreshing balances')
+    
+    // Force refresh both balances when outcome changes, just like Your Current Holding
+    if (conditionId && yesPositionId && noPositionId && vaultAddress) {
+      setIsBalanceLoading(true)
+      setIsYmBalanceLoading(true)
+      
+      ;(async () => {
+        try {
+          await Promise.all([
+            readBestPositionBalance(true), // Force refresh with true parameter
+            readYmBalance() // YM balance refresh (no debouncing like Your Current Holding)
+          ])
+        } catch (error) {
+          console.error('[TM][Balance] Error refreshing balances on outcome change:', error)
+        }
+      })()
+    }
+  }, [selectedOutcome, isOpen, isConnected, address, conditionId, yesPositionId, noPositionId, vaultAddress, readBestPositionBalance, readYmBalance]) // Trigger on selectedOutcome change
 
   // Calculate expected payout using real odds
   const expectedPayout = inputAmount ? (parseFloat(inputAmount) * displayOdds).toFixed(2) : '0.00'
@@ -464,14 +494,18 @@ export function TradingModal({
   }, [isOpen, isConnected, address, paymentAsset, refetchUsdcBalance, readBestPositionBalance])
 
   const handleMaxClick = () => {
-    setInputAmount(userBalance)
-    setSelectedButton('MAX')
+    if (userBalance && userBalance !== '' && !isBalanceLoading) {
+      setInputAmount(userBalance)
+      setSelectedButton('MAX')
+    }
   }
 
   const handleQuickAmount = (percentage: number) => {
-    const amount = (parseFloat(userBalance) * percentage / 100).toFixed(2)
-    setInputAmount(amount)
-    setSelectedButton(percentage.toString() as '25' | '50' | '75')
+    if (userBalance && userBalance !== '' && !isBalanceLoading) {
+      const amount = (parseFloat(userBalance) * percentage / 100).toFixed(2)
+      setInputAmount(amount)
+      setSelectedButton(percentage.toString() as '25' | '50' | '75')
+    }
   }
 
   const handleConnectWallet = async () => {
@@ -1164,7 +1198,7 @@ export function TradingModal({
     }
   }
 
-  const isValidAmount = inputAmount && parseFloat(inputAmount) > 0 && parseFloat(inputAmount) <= parseFloat(userBalance)
+  const isValidAmount = inputAmount && parseFloat(inputAmount) > 0 && userBalance && userBalance !== '' && parseFloat(inputAmount) <= parseFloat(userBalance)
 
   if (!isOpen) return null
 
