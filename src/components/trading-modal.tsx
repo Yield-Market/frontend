@@ -405,7 +405,7 @@ export function TradingModal({
 
   // Calculate expected payout using real odds
   const expectedPayout = inputAmount ? (parseFloat(inputAmount) * displayOdds).toFixed(2) : '0.00'
-  const potentialProfit = inputAmount ? (parseFloat(expectedPayout) - parseFloat(inputAmount)).toFixed(2) : '0.00'
+  const potentialProfit = inputAmount ? parseFloat(inputAmount).toFixed(2) : 0.00
 
   // Reset form when modal opens/closes
   useEffect(() => {
