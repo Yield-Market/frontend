@@ -12,6 +12,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { getStatusColor, getCategoryColor } from '@/components/market-icons'
 import { MarketStatus, MarketCategory } from '@/types'
 import { TradingModal } from '@/components/trading-modal'
+import { NativeUsdcTradingModal } from '@/components/native-usdc-trading-modal'
 import { useAccount, useWriteContract, usePublicClient, useChainId } from 'wagmi'
 import { YM_VAULT_ABI, CONDITIONAL_TOKENS_ABI, SAFE_ABI } from '@/lib/abis'
 import { SafeAddressCache } from '@/lib/safe-cache'
@@ -992,6 +993,7 @@ export function MarketOverview({ onAddFilterRef }: MarketOverviewProps = {}) {
   const [selectedOutcome, setSelectedOutcome] = useState<'YES' | 'NO'>('YES')
   const [selectedCondition, setSelectedCondition] = useState<ConditionInfo | null>(null)
   const [isTransacting, setIsTransacting] = useState(false)
+  const [paymentAsset, setPaymentAsset] = useState<'USDC' | 'YES_TOKEN' | 'NO_TOKEN'>('YES_TOKEN')
   
   // Wallet connection toast state
   const [showWalletToast, setShowWalletToast] = useState(false)
@@ -1503,7 +1505,7 @@ export function MarketOverview({ onAddFilterRef }: MarketOverviewProps = {}) {
       </div>
 
       {/* Trading Modal */}
-      {selectedCondition && (
+      {selectedCondition && paymentAsset !== 'USDC' && (
         <TradingModal
           isOpen={isModalOpen}
           onClose={() => setIsModalOpen(false)}
@@ -1514,6 +1516,19 @@ export function MarketOverview({ onAddFilterRef }: MarketOverviewProps = {}) {
           isTransacting={isTransacting}
           marketUuid={selectedCondition.conditionId}
           apiVaultAddress={markets?.find(m => (m.id || m.slug) === selectedCondition.conditionId)?.vault_address}
+          paymentAsset={paymentAsset}
+          onPaymentAssetChange={setPaymentAsset}
+        />
+      )}
+
+      {/* Native USDC Trading Modal */}
+      {selectedCondition && paymentAsset === 'USDC' && (
+        <NativeUsdcTradingModal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          marketQuestion={selectedCondition.question}
+          selectedOutcome={selectedOutcome}
+          onPaymentAssetChange={setPaymentAsset}
         />
       )}
 

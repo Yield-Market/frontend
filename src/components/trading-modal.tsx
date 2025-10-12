@@ -26,6 +26,8 @@ interface TradingModalProps {
   isTransacting?: boolean
   marketUuid?: string // Changed: this is the market UUID, not condition ID
   apiVaultAddress?: string // Add vault address from API
+  paymentAsset?: 'USDC' | 'YES_TOKEN' | 'NO_TOKEN' // Add payment asset prop
+  onPaymentAssetChange?: (asset: 'USDC' | 'YES_TOKEN' | 'NO_TOKEN') => void // Add payment asset change handler
 }
 
 export function TradingModal({
@@ -37,7 +39,9 @@ export function TradingModal({
   onConfirmTrade,
   isTransacting = false,
   marketUuid, // Changed: this is the market UUID
-  apiVaultAddress // Add new prop
+  apiVaultAddress, // Add new prop
+  paymentAsset: externalPaymentAsset,
+  onPaymentAssetChange
 }: TradingModalProps) {
   const { address, isConnected } = useAccount()
   const publicClient = usePublicClient()
@@ -49,7 +53,25 @@ export function TradingModal({
   const [isBalanceLoading, setIsBalanceLoading] = useState(false)
   const [ymBalance, setYmBalance] = useState('0.00')
   const [isYmBalanceLoading, setIsYmBalanceLoading] = useState(false)
-  const [paymentAsset, setPaymentAsset] = useState<'USDC' | 'YES_TOKEN' | 'NO_TOKEN'>('YES_TOKEN')
+  const [internalPaymentAsset, setInternalPaymentAsset] = useState<'USDC' | 'YES_TOKEN' | 'NO_TOKEN'>(externalPaymentAsset || 'YES_TOKEN')
+  
+  // Sync internal payment asset with external prop
+  React.useEffect(() => {
+    if (externalPaymentAsset) {
+      setInternalPaymentAsset(externalPaymentAsset)
+    }
+  }, [externalPaymentAsset])
+  
+  // Update external payment asset when internal changes
+  const setPaymentAsset = React.useCallback((asset: 'USDC' | 'YES_TOKEN' | 'NO_TOKEN') => {
+    setInternalPaymentAsset(asset)
+    if (onPaymentAssetChange) {
+      onPaymentAssetChange(asset)
+    }
+  }, [onPaymentAssetChange])
+  
+  // Use the internal state for current paymentAsset value
+  const paymentAsset = internalPaymentAsset
   
   // Add state for condition ID and position IDs from backend API
   const [conditionId, setConditionId] = useState<string | null>(null)
@@ -401,7 +423,7 @@ export function TradingModal({
         console.log('[TM][Balance] Waiting for condition ID and position IDs...')
       }
     } catch {}
-  }, [isOpen, selectedOutcome, marketUuid, vaultAddress, conditionId, yesPositionId, noPositionId, readBestPositionBalance, readYmBalance]) // Updated dependencies
+  }, [isOpen, selectedOutcome, marketUuid, vaultAddress, conditionId, yesPositionId, noPositionId, readBestPositionBalance, readYmBalance, setPaymentAsset]) // Updated dependencies
 
   // Calculate expected payout using real odds
   const expectedPayout = inputAmount ? (parseFloat(inputAmount) * displayOdds).toFixed(2) : '0.00'
@@ -1095,7 +1117,9 @@ export function TradingModal({
                     onClick={() => setIsAssetMenuOpen(v => !v)}
                     className="flex items-center gap-2 bg-white rounded-lg px-3 py-2 border border-gray-200 hover:bg-gray-50"
                   >
-                    <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center text-white text-xs font-bold">
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold ${
+                      paymentAsset === 'USDC' ? 'bg-green-500' : 'bg-blue-500'
+                    }`}>
                       {paymentAsset === 'USDC' ? '$' : (selectedOutcome === 'YES' ? 'Y' : 'N')}
                     </div>
                     <span className="font-medium text-gray-900">{paymentAsset === 'USDC' ? 'USDC' : selectedOutcome}</span>
@@ -1104,9 +1128,23 @@ export function TradingModal({
                   {isAssetMenuOpen && (
                     <div className="absolute right-0 mt-2 w-36 bg-white border border-gray-200 rounded-md shadow-lg z-10">
                       <button
-                        className={`w-full text-left px-3 py-2 hover:bg-gray-50 ${paymentAsset!=='USDC' ? 'text-blue-600' : 'text-gray-900'}`}
+                        className={`w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center gap-2 ${paymentAsset !== 'USDC' ? 'text-blue-600 bg-blue-50' : 'text-gray-900'}`}
                         onClick={() => { setPaymentAsset(selectedOutcome === 'YES' ? 'YES_TOKEN' : 'NO_TOKEN'); setIsAssetMenuOpen(false) }}
-                      >{selectedOutcome} Token</button>
+                      >
+                        <div className="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center text-white text-xs font-bold">
+                          {selectedOutcome === 'YES' ? 'Y' : 'N'}
+                        </div>
+                        {selectedOutcome} Token
+                      </button>
+                      <button
+                        className={`w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center gap-2 ${paymentAsset === 'USDC' ? 'text-blue-600 bg-blue-50' : 'text-gray-900'}`}
+                        onClick={() => { setPaymentAsset('USDC'); setIsAssetMenuOpen(false) }}
+                      >
+                        <div className="w-4 h-4 bg-green-500 rounded-full flex items-center justify-center text-white text-xs font-bold">
+                          $
+                        </div>
+                        USDC
+                      </button>
                     </div>
                   )}
                 </div>
