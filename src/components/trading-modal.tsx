@@ -49,9 +49,19 @@ export function TradingModal({
   const { writeContractAsync } = useWriteContract()
   const { connect, connectors } = useConnect()
   const [inputAmount, setInputAmount] = useState('')
-  const [userBalance, setUserBalance] = useState('')
-  const [isBalanceLoading, setIsBalanceLoading] = useState(false)
-  const [ymBalance, setYmBalance] = useState('0.00')
+  
+  // Separate balance management for different outcomes and USDC
+  const [balances, setBalances] = useState<{
+    USDC: string;
+    YES_TOKEN: string;
+    NO_TOKEN: string;
+  }>({
+    USDC: '',
+    YES_TOKEN: '',
+    NO_TOKEN: ''
+  })
+  
+  const [ymBalance, setYmBalance] = useState('')
   const [isYmBalanceLoading, setIsYmBalanceLoading] = useState(false)
   const [internalPaymentAsset, setInternalPaymentAsset] = useState<'USDC' | 'YES_TOKEN' | 'NO_TOKEN'>(externalPaymentAsset || 'YES_TOKEN')
   
@@ -65,6 +75,10 @@ export function TradingModal({
   // Update external payment asset when internal changes
   const setPaymentAsset = React.useCallback((asset: 'USDC' | 'YES_TOKEN' | 'NO_TOKEN') => {
     setInternalPaymentAsset(asset)
+    
+    // Clear balance immediately when switching assets - will show loading spinner
+    setBalanceForAsset(asset, '')
+    
     if (onPaymentAssetChange) {
       onPaymentAssetChange(asset)
     }
@@ -72,6 +86,19 @@ export function TradingModal({
   
   // Use the internal state for current paymentAsset value
   const paymentAsset = internalPaymentAsset
+  
+  // Helper function to get current balance based on payment asset
+  const getCurrentBalance = (): string => {
+    return balances[paymentAsset]
+  }
+  
+  // Helper function to set balance for specific asset
+  const setBalanceForAsset = (asset: 'USDC' | 'YES_TOKEN' | 'NO_TOKEN', balance: string) => {
+    setBalances(prev => ({
+      ...prev,
+      [asset]: balance
+    }))
+  }
   
   // Add state for condition ID and position IDs from backend API
   const [conditionId, setConditionId] = useState<string | null>(null)
@@ -124,8 +151,6 @@ export function TradingModal({
   const [completionContext, setCompletionContext] = useState<'order' | 'deposit' | 'withdraw' | null>(null)
   const [tradeError, setTradeError] = useState<string | null>(null)
   // const [bestHolder, setBestHolder] = useState<string | null>(null) // Removed unused
-  const [bestPositionBal, setBestPositionBal] = useState<bigint | undefined>(undefined)
-  const [lastBalanceQuery, setLastBalanceQuery] = useState<number>(0)
 
   // Get real odds from contract (fallback) - removed unused variables
   useMarketOdds(conditionId || undefined)
@@ -200,7 +225,7 @@ export function TradingModal({
       setIsYmBalanceLoading(true)
 
       if (!publicClient || !vaultAddress) {
-        setYmBalance('0.00')
+        // Don't set to 0.00, keep loading state active
         return 0n
       }
 
@@ -237,8 +262,69 @@ export function TradingModal({
     }
   }, [publicClient, vaultAddress, address, selectedOutcome, fetchSafesForOwner]) // Removed unnecessary chainId dependency
 
+  // Helper: read both YES and NO token balances simultaneously
+  const readAllTokenBalances = useCallback(async (): Promise<void> => {
+    if (!publicClient || !conditionId || !yesPositionId || !noPositionId) {
+      console.log('[TM][AllBalances] Missing requirements')
+      return
+    }
+
+    try {
+      console.log('[TM][AllBalances] Starting to query both YES and NO balances')
+      
+      const holders: string[] = [address || '', ...await fetchSafesForOwner(address)].filter(Boolean)
+      const ctf = conditionalTokensAddress as `0x${string}`
+      
+      // Query YES balance
+      let yesBest: { h?: string; b: bigint } = { b: 0n }
+      for (const h of holders) {
+        try {
+          const yesBalance: bigint = await publicClient.readContract({
+            address: ctf,
+            abi: CONDITIONAL_TOKENS_ABI,
+            functionName: 'balanceOf',
+            args: [h as `0x${string}`, BigInt(yesPositionId)]
+          }) as unknown as bigint
+          
+          if (yesBalance > yesBest.b) {
+            yesBest = { h, b: yesBalance }
+          }
+        } catch (e) {
+          console.error('[TM][AllBalances] Error querying YES balance for holder', h, ':', e)
+        }
+      }
+      
+      // Query NO balance
+      let noBest: { h?: string; b: bigint } = { b: 0n }
+      for (const h of holders) {
+        try {
+          const noBalance: bigint = await publicClient.readContract({
+            address: ctf,
+            abi: CONDITIONAL_TOKENS_ABI,
+            functionName: 'balanceOf',
+            args: [h as `0x${string}`, BigInt(noPositionId)]
+          }) as unknown as bigint
+          
+          if (noBalance > noBest.b) {
+            noBest = { h, b: noBalance }
+          }
+        } catch (e) {
+          console.error('[TM][AllBalances] Error querying NO balance for holder', h, ':', e)
+        }
+      }
+      
+      // Update both balances
+      setBalanceForAsset('YES_TOKEN', formatBalance(formatUnits(yesBest.b, 6)))
+      setBalanceForAsset('NO_TOKEN', formatBalance(formatUnits(noBest.b, 6)))
+      
+      console.log('[TM][AllBalances] Updated balances - YES:', formatBalance(formatUnits(yesBest.b, 6)), 'NO:', formatBalance(formatUnits(noBest.b, 6)))
+    } catch (error) {
+      console.error('[TM][AllBalances] Error:', error)
+    }
+  }, [publicClient, conditionId, yesPositionId, noPositionId, address, fetchSafesForOwner, conditionalTokensAddress])
+
   // Helper: read best balance across EOA + safes for current positionId from conditional tokens
-  const readBestPositionBalance = useCallback(async (forceRefresh = false): Promise<bigint | undefined> => {
+  const readBestPositionBalance = useCallback(async (): Promise<bigint | undefined> => {
     try {
       console.log('[TM][CTBalance][START] Starting balance query for tokens')
       console.log('[TM][CTBalance][PARAMS] marketUuid:', marketUuid)
@@ -248,23 +334,9 @@ export function TradingModal({
       console.log('[TM][CTBalance][PARAMS] noPositionId:', noPositionId)
       console.log('[TM][CTBalance][PARAMS] conditionalTokensAddress:', conditionalTokensAddress)
       console.log('[TM][CTBalance][PARAMS] userAddress:', address)
-      console.log('[TM][CTBalance][PARAMS] forceRefresh:', forceRefresh)
       
-      // Add debouncing to prevent too frequent queries, but allow force refresh
-      if (!forceRefresh) {
-        const now = Date.now()
-        if (now - lastBalanceQuery < 5000) { // 5 seconds debounce
-          console.log('[TM][CTBalance] Debounced query, too soon')
-          return bestPositionBal
-        }
-        setLastBalanceQuery(now)
-      }
-
-      setIsBalanceLoading(true)
-
       if (!publicClient || !conditionId) {
         console.log('[TM][CTBalance][ERROR] Missing requirements - publicClient:', !!publicClient, 'conditionId:', conditionId)
-        setBestPositionBal(0n)
         // Don't set balance to 0.00 immediately, keep loading state active
         // setUserBalance('0.00') // Removed
         return 0n
@@ -275,7 +347,6 @@ export function TradingModal({
       
       if (!currentPositionId) {
         console.log('[TM][CTBalance][ERROR] No position ID available for outcome:', selectedOutcome)
-        setBestPositionBal(0n)
         // Don't set balance to 0.00 immediately, keep loading state active
         // setUserBalance('0.00') // Removed
         return 0n
@@ -318,10 +389,10 @@ export function TradingModal({
       }
 
       // setBestHolder(best.h || null) // Removed unused
-      setBestPositionBal(best.b)
-      // Manually update balance display
+      // Manually update balance display for current outcome
       const formattedBalance = formatBalance(formatUnits(best.b, 6))
-      setUserBalance(formattedBalance)
+      const currentOutcomeAsset = selectedOutcome === 'YES' ? 'YES_TOKEN' : 'NO_TOKEN'
+      setBalanceForAsset(currentOutcomeAsset, formattedBalance)
       console.log('[TM][CTBalance][FINAL] Final results:')
       console.log('[TM][CTBalance][FINAL] - Condition ID:', conditionId)
       console.log('[TM][CTBalance][FINAL] - Position ID from API:', currentPositionId)
@@ -335,10 +406,9 @@ export function TradingModal({
       console.error('[TM][CTBalance][ERROR] Fatal error:', e)
       return undefined
     } finally {
-      setIsBalanceLoading(false)
       console.log('[TM][CTBalance][END] Balance query completed')
     }
-  }, [publicClient, address, fetchSafesForOwner, conditionalTokensAddress, lastBalanceQuery, bestPositionBal, conditionId, selectedOutcome, marketUuid, yesPositionId, noPositionId]) // Updated dependencies
+  }, [publicClient, address, fetchSafesForOwner, conditionalTokensAddress, conditionId, selectedOutcome, marketUuid, yesPositionId, noPositionId]) // Updated dependencies
 
   // Format balance display, limit decimal places
   const formatBalance = (balance: string | number): string => {
@@ -355,13 +425,14 @@ export function TradingModal({
   // Update user balance when asset or balances change
   useEffect(() => {
     if (paymentAsset === 'USDC') {
-      if (usdcBalance) setUserBalance(formatBalance(formatUnits(usdcBalance, 6)))
-    } else if (paymentAsset === 'YES_TOKEN' || paymentAsset === 'NO_TOKEN') {
-      if (bestPositionBal !== undefined && !isBalanceLoading) {
-        setUserBalance(formatBalance(formatUnits(bestPositionBal as bigint, 6)))
+      if (usdcBalance) {
+        setBalanceForAsset('USDC', formatBalance(formatUnits(usdcBalance, 6)))
+      } else {
+        setBalanceForAsset('USDC', '')
       }
     }
-  }, [paymentAsset, usdcBalance, bestPositionBal, isBalanceLoading])
+    // Note: YES_TOKEN and NO_TOKEN balances are set directly by readBestPositionBalance
+  }, [paymentAsset, usdcBalance])
 
   // Periodic balance refresh - refresh every 2 minutes
   useEffect(() => {
@@ -372,11 +443,14 @@ export function TradingModal({
         if (paymentAsset === 'USDC') {
           const result = await refetchUsdcBalance()
           if (result.data) {
-            setUserBalance(formatBalance(formatUnits(result.data, 6)))
+            setBalanceForAsset('USDC', formatBalance(formatUnits(result.data, 6)))
           }
-        } else if (paymentAsset === 'YES_TOKEN' || paymentAsset === 'NO_TOKEN') {
+        } else if (paymentAsset === 'YES_TOKEN') {
           const b = await readBestPositionBalance()
-          if (b !== undefined) setUserBalance(formatBalance(formatUnits(b as bigint, 6)))
+          if (b !== undefined) setBalanceForAsset('YES_TOKEN', formatBalance(formatUnits(b as bigint, 6)))
+        } else if (paymentAsset === 'NO_TOKEN') {
+          const b = await readBestPositionBalance()
+          if (b !== undefined) setBalanceForAsset('NO_TOKEN', formatBalance(formatUnits(b as bigint, 6)))
         }
       } catch (error) {
         console.log('Balance refresh error:', error)
@@ -388,10 +462,10 @@ export function TradingModal({
 
   // Function to deduct balance after transaction signature is sent
   const deductBalanceAfterSignature = (amount: string) => {
-    const currentBalance = parseFloat(userBalance)
+    const currentBalance = parseFloat(getCurrentBalance())
     const deductAmount = parseFloat(amount)
     const newBalance = Math.max(0, currentBalance - deductAmount)
-    setUserBalance(formatBalance(newBalance))
+    setBalanceForAsset(paymentAsset, formatBalance(newBalance))
   }
 
   // On open, default to selected direction token (YES or NO)
@@ -409,10 +483,11 @@ export function TradingModal({
     
     try {
       setPaymentAsset(selectedOutcome === 'YES' ? 'YES_TOKEN' : 'NO_TOKEN')
-      // Don't set balance to '0.00' immediately - let loading indicator show instead
-      setYmBalance('0.00')
-      setIsBalanceLoading(true)
-      setIsYmBalanceLoading(true)
+      // Clear balances - they will be set by useEffect when data is loaded
+      setBalanceForAsset('YES_TOKEN', '')
+      setBalanceForAsset('NO_TOKEN', '')
+      setBalanceForAsset('USDC', '')
+      // Don't reset YM balance to 0.00, keep current state or loading
       
       // Only query if we have the condition ID and position IDs
       if (conditionId && yesPositionId && noPositionId) {
@@ -420,7 +495,7 @@ export function TradingModal({
         ;(async () => {
           // Query both balances simultaneously
           await Promise.all([
-            readBestPositionBalance(), // Query conditional tokens balance
+            readAllTokenBalances(), // Query all conditional tokens balances
             readYmBalance() // Query ym contract balance
           ])
         })()
@@ -429,7 +504,7 @@ export function TradingModal({
         // Still keep loading state active until we get the data
       }
     } catch {}
-  }, [isOpen, selectedOutcome, marketUuid, vaultAddress, conditionId, yesPositionId, noPositionId, readBestPositionBalance, readYmBalance, setPaymentAsset]) // Updated dependencies
+  }, [isOpen, selectedOutcome, marketUuid, vaultAddress, conditionId, yesPositionId, noPositionId, readAllTokenBalances, readYmBalance, setPaymentAsset]) // Updated dependencies
 
   // Immediately refresh balance when selectedOutcome changes (same as Your Current Holding mechanism)
   useEffect(() => {
@@ -437,23 +512,24 @@ export function TradingModal({
     
     console.log('[TM][Balance] selectedOutcome changed, refreshing balances')
     
-    // Force refresh both balances when outcome changes, just like Your Current Holding
+    // Clear balances immediately when outcome changes
+    setBalanceForAsset('YES_TOKEN', '')
+    setBalanceForAsset('NO_TOKEN', '')
+    
+    // Refresh both balances when outcome changes
     if (conditionId && yesPositionId && noPositionId && vaultAddress) {
-      setIsBalanceLoading(true)
-      setIsYmBalanceLoading(true)
-      
       ;(async () => {
         try {
           await Promise.all([
-            readBestPositionBalance(true), // Force refresh with true parameter
-            readYmBalance() // YM balance refresh (no debouncing like Your Current Holding)
+            readAllTokenBalances(), // Query all conditional tokens balances
+            readYmBalance() // YM balance refresh
           ])
         } catch (error) {
           console.error('[TM][Balance] Error refreshing balances on outcome change:', error)
         }
       })()
     }
-  }, [selectedOutcome, isOpen, isConnected, address, conditionId, yesPositionId, noPositionId, vaultAddress, readBestPositionBalance, readYmBalance]) // Trigger on selectedOutcome change
+  }, [selectedOutcome, isOpen, isConnected, address, conditionId, yesPositionId, noPositionId, vaultAddress, readAllTokenBalances, readYmBalance]) // Trigger on selectedOutcome change
 
   // Calculate expected payout using real odds
   const expectedPayout = inputAmount ? (parseFloat(inputAmount) * displayOdds).toFixed(2) : '0.00'
@@ -476,11 +552,14 @@ export function TradingModal({
           if (paymentAsset === 'USDC') {
             const result = await refetchUsdcBalance()
             if (result.data) {
-              setUserBalance(formatBalance(formatUnits(result.data, 6)))
+              setBalanceForAsset('USDC', formatBalance(formatUnits(result.data, 6)))
             }
-          } else if (paymentAsset === 'YES_TOKEN' || paymentAsset === 'NO_TOKEN') {
+          } else if (paymentAsset === 'YES_TOKEN') {
             const b = await readBestPositionBalance()
-            if (b !== undefined) setUserBalance(formatBalance(formatUnits(b as bigint, 6)))
+            if (b !== undefined) setBalanceForAsset('YES_TOKEN', formatBalance(formatUnits(b as bigint, 6)))
+          } else if (paymentAsset === 'NO_TOKEN') {
+            const b = await readBestPositionBalance()
+            if (b !== undefined) setBalanceForAsset('NO_TOKEN', formatBalance(formatUnits(b as bigint, 6)))
           }
         }, 500) // Delayed refresh to avoid frequent calls
       }
@@ -494,15 +573,17 @@ export function TradingModal({
   }, [isOpen, isConnected, address, paymentAsset, refetchUsdcBalance, readBestPositionBalance])
 
   const handleMaxClick = () => {
-    if (userBalance && userBalance !== '' && !isBalanceLoading) {
-      setInputAmount(userBalance)
+    const currentBalance = getCurrentBalance()
+    if (currentBalance && currentBalance !== '') {
+      setInputAmount(currentBalance)
       setSelectedButton('MAX')
     }
   }
 
   const handleQuickAmount = (percentage: number) => {
-    if (userBalance && userBalance !== '' && !isBalanceLoading) {
-      const amount = (parseFloat(userBalance) * percentage / 100).toFixed(2)
+    const currentBalance = getCurrentBalance()
+    if (currentBalance && currentBalance !== '') {
+      const amount = (parseFloat(currentBalance) * percentage / 100).toFixed(2)
       setInputAmount(amount)
       setSelectedButton(percentage.toString() as '25' | '50' | '75')
     }
@@ -1162,11 +1243,14 @@ export function TradingModal({
         if (paymentAsset === 'USDC') {
           const result = await refetchUsdcBalance()
           if (result.data) {
-            setUserBalance(formatBalance(formatUnits(result.data, 6)))
+            setBalanceForAsset('USDC', formatBalance(formatUnits(result.data, 6)))
           }
-        } else if (paymentAsset === 'YES_TOKEN' || paymentAsset === 'NO_TOKEN') {
+        } else if (paymentAsset === 'YES_TOKEN') {
           const b = await readBestPositionBalance()
-          if (b !== undefined) setUserBalance(formatBalance(formatUnits(b as bigint, 6)))
+          if (b !== undefined) setBalanceForAsset('YES_TOKEN', formatBalance(formatUnits(b as bigint, 6)))
+        } else if (paymentAsset === 'NO_TOKEN') {
+          const b = await readBestPositionBalance()
+          if (b !== undefined) setBalanceForAsset('NO_TOKEN', formatBalance(formatUnits(b as bigint, 6)))
         }
 
         // Refresh ym contract balance (should update after deposit)
@@ -1186,11 +1270,14 @@ export function TradingModal({
         if (paymentAsset === 'USDC') {
           const result = await refetchUsdcBalance()
           if (result.data) {
-            setUserBalance(formatBalance(formatUnits(result.data, 6)))
+            setBalanceForAsset('USDC', formatBalance(formatUnits(result.data, 6)))
           }
-        } else if (paymentAsset === 'YES_TOKEN' || paymentAsset === 'NO_TOKEN') {
+        } else if (paymentAsset === 'YES_TOKEN') {
           const b = await readBestPositionBalance()
-          if (b !== undefined) setUserBalance(formatBalance(formatUnits(b as bigint, 6)))
+          if (b !== undefined) setBalanceForAsset('YES_TOKEN', formatBalance(formatUnits(b as bigint, 6)))
+        } else if (paymentAsset === 'NO_TOKEN') {
+          const b = await readBestPositionBalance()
+          if (b !== undefined) setBalanceForAsset('NO_TOKEN', formatBalance(formatUnits(b as bigint, 6)))
         }
       }, 500) // Refresh after short delay
     } finally {
@@ -1198,7 +1285,10 @@ export function TradingModal({
     }
   }
 
-  const isValidAmount = inputAmount && parseFloat(inputAmount) > 0 && userBalance && userBalance !== '' && parseFloat(inputAmount) <= parseFloat(userBalance)
+  const isValidAmount = (() => {
+    const currentBalance = getCurrentBalance()
+    return inputAmount && parseFloat(inputAmount) > 0 && currentBalance && currentBalance !== '' && parseFloat(inputAmount) <= parseFloat(currentBalance)
+  })()
 
   if (!isOpen) return null
 
@@ -1241,7 +1331,7 @@ export function TradingModal({
             <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
               <div className="text-sm font-medium text-blue-900 flex justify-between items-center">
                 <span>Your Current Holding:</span>
-                {isYmBalanceLoading ? (
+                {isYmBalanceLoading || !ymBalance ? (
                   <div className="flex items-center gap-1">
                     <div className="w-3 h-3 border border-blue-400 border-t-transparent rounded-full animate-spin"></div>
                     <span>Loading...</span>
@@ -1260,13 +1350,13 @@ export function TradingModal({
                 <span className="text-sm font-medium text-gray-700">You Pay</span>
                 <span className="text-sm text-gray-500 flex items-center gap-2">
                   Balance:
-                  {isBalanceLoading ? (
+                  {getCurrentBalance() === '' ? (
                     <div className="flex items-center gap-1">
                       <div className="w-3 h-3 border border-gray-400 border-t-transparent rounded-full animate-spin"></div>
                       <span>Loading...</span>
                     </div>
                   ) : (
-                    <span>{userBalance} {paymentAsset === 'USDC' ? 'USDC' : selectedOutcome}</span>
+                    <span>{getCurrentBalance()} {paymentAsset === 'USDC' ? 'USDC' : selectedOutcome}</span>
                   )}
                 </span>
               </div>
