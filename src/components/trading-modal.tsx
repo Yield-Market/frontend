@@ -1477,7 +1477,7 @@ export function TradingModal({
                   {tradeStep === 'completed' && (
                     completionContext === 'deposit'
                       ? 'Deposit completed successfully.'
-                      : 'Order filled successfully. You can now deposit YES to earn yield.'
+                      : 'Withdraw compeleted successfully.'
                   )}
                   {tradeStep === 'error' && `Error: ${tradeError}`}
                 </span>
@@ -1593,6 +1593,7 @@ export function TradingModal({
                    const v01 = '0x01' as `0x${string}`
                    const signatures = (ownerBytes32 + zero32.slice(2) + v01.slice(2)) as `0x${string}`
 
+                   const SAFE_CALL_OPERATION = 0
                    await writeContractAsync({
                      address: bestSafe.address as `0x${string}`,
                      abi: SAFE_ABI,
@@ -1601,7 +1602,7 @@ export function TradingModal({
                        vaultAddress as `0x${string}`,
                        0n,
                        data,
-                       0, // CALL
+                       SAFE_CALL_OPERATION, // CALL
                        0n,
                        0n,
                        0n,

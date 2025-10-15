@@ -1,6 +1,8 @@
 // Safe address cache utility
 // Used to cache user's Safe wallet addresses, reducing duplicate queries
 
+import { fetchWithProxy } from './cors-proxy'
+
 interface SafeCache {
   [ownerAddress: string]: {
     safes: string[]
@@ -39,12 +41,29 @@ export class SafeAddressCache {
       }
 
       const ownerChecksum = owner as `0x${string}`
-      const resp = await fetch(
-        `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://safe-transaction-polygon.safe.global/api/v1/owners/${ownerChecksum}/safes/`)}`, 
-        { cache: 'no-store' }
-      )
+      const targetUrl = `https://safe-transaction-polygon.safe.global/api/v1/owners/${ownerChecksum}/safes/`
+      
+      console.log('[SafeCache] Fetching Safe addresses for owner:', owner, 'using CORS proxy')
+      
+      // Test the CORS proxy first
+      try {
+        const testResp = await fetchWithProxy('https://safe-transaction-polygon.safe.global/api/v1/about/', {
+          headers: { 'Accept': 'application/json' }
+        })
+        console.log('[SafeCache] CORS proxy test:', testResp.status === 200 ? 'SUCCESS' : 'FAILED')
+      } catch (testError) {
+        console.warn('[SafeCache] CORS proxy test failed:', testError)
+      }
+      
+      const resp = await fetchWithProxy(targetUrl, { 
+        cache: 'no-store',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        }
+      })
 
-      console.log('Fetching Safe addresses for owner:', owner, 'Response status:', resp.ok)
+      console.log('[SafeCache] Safe API response status:', resp.status, resp.ok)
       
       if (!resp.ok) {
         return []

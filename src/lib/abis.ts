@@ -24,9 +24,7 @@ export const YM_VAULT_ABI = parseAbi([
   // Write functions
   'function withdrawYesTokens(uint256 amount)',
   'function withdrawNoTokens(uint256 amount)',
-  'function withdraw()',
   'function withdraw(address to)',
-  'function resolveMarket()',
   
   // Events
   'event YesTokenDeposited(address indexed user, uint256 amount, uint256 yesYMinted)',
@@ -36,7 +34,7 @@ export const YM_VAULT_ABI = parseAbi([
   'event PositionsMatched(uint256 amount, uint256 usdcGenerated)',
   'event YieldDeposited(uint256 amount, uint256 aTokensReceived)',
   'event MarketResolved(bool yesWon, uint256 payoutRatio)',
-  'event Withdrawal(address indexed user, uint256 yesYBurned, uint256 noYBurned, uint256 usdcReceived)'
+  'event Withdrawal(address indexed user, address indexed to, uint256 yesYBurned, uint256 noYBurned, uint256 usdcReceived)'
 ])
 
 // Legacy ABI for backward compatibility
@@ -86,6 +84,7 @@ export const OUTCOME_YIELD_TOKEN_ABI = parseAbi([
 export const SAFE_ABI = parseAbi([
   'function getThreshold() view returns (uint256)',
   'function getOwners() view returns (address[])',
+  'function nonce() view returns (uint256)',
   'function execTransaction(address to, uint256 value, bytes data, uint8 operation, uint256 safeTxGas, uint256 baseGas, uint256 gasPrice, address gasToken, address refundReceiver, bytes signatures) returns (bool success)'
 ])
 
