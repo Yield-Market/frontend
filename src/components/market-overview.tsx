@@ -19,7 +19,7 @@ import { SafeAddressCache } from '@/lib/safe-cache'
 import { logger } from '@/lib/logger'
 import { Pagination } from '@/components/ui/pagination'
 import { HandlersMarketItem } from '@/generated/api/src/models'
-import { MarketsApi, Configuration } from '@/generated/api/src'
+import { MarketsApi, Configuration, ApiV1MarketsGetSortEnum, ApiV1MarketsGetOrderEnum } from '@/generated/api/src'
 // import { CONTRACT_ADDRESSES } from '@/lib/config' // Removed unused
 
 // interface BalanceCardProps {
@@ -246,8 +246,8 @@ function ConditionCard({ condition, markets, onTradeClick, preloadedResolved, lo
   // YES/NO current prices from Polymarket: prefer slug from API data if available
   const marketFromApi = markets?.find(m => (m.id || m.slug) === condition.conditionId)
   
-  // Use vault_address from API response instead of vaultAddress from config
-  const apiVaultAddress = marketFromApi?.vault_address
+  // Use vaultAddress from API response instead of vaultAddress from config
+  const apiVaultAddress = marketFromApi?.vaultAddress
   const shouldQueryStats = !!apiVaultAddress && !/^0x0{40}$/i.test(apiVaultAddress as string)
   
   const { volume, yielding, loading: statsLoading, error: statsError } = useMarketStats(condition.conditionId, shouldQueryStats, apiVaultAddress)
@@ -266,6 +266,7 @@ function ConditionCard({ condition, markets, onTradeClick, preloadedResolved, lo
   const [estLoading, setEstLoading] = useState(false)
   const [estAmount, setEstAmount] = useState<number | null>(null)
   const [estError, setEstError] = useState<string | null>(null)
+
   
   const formatValue = (value: number) => {
     if (value >= 1000000) {
@@ -278,7 +279,7 @@ function ConditionCard({ condition, markets, onTradeClick, preloadedResolved, lo
   
   // Use real market stats from contract instead of position balances
   // idle uses Polymarket's volumeNum, yielding uses contract totalMatched
-  // Check if vault_address from API is empty (0x0000000...) to determine if yielding/idle should be displayed
+  // Check if vaultAddress from API is empty (0x0000000...) to determine if yielding/idle should be displayed
   const vaultMissing = !apiVaultAddress || /^0x0{40}$/i.test(apiVaultAddress as string)
   const idleDisplay = pmVolume !== undefined ? formatValue(pmVolume) : (statsLoading ? '...' : formatValue(0))
   const yieldingDisplay = (vaultMissing || statsError) ? '—' : (statsLoading ? '...' : formatValue(yielding))
@@ -340,7 +341,7 @@ function ConditionCard({ condition, markets, onTradeClick, preloadedResolved, lo
                     <span className="font-medium text-gray-900 dark:text-[#e0e0e0]">{volumeDisplayWithDollar}</span>
                     <span className="text-xs text-gray-500 dark:text-[#a0a0a0]">volume</span>
                   </div>
-                  {/* Only show yielding and idle if vault_address is not empty */}
+                  {/* Only show yielding and idle if vaultAddress is not empty */}
                   {!vaultMissing && (
                     <>
                       <div className="flex items-center gap-1">
@@ -829,19 +830,24 @@ export function MarketOverview({ onAddFilterRef }: MarketOverviewProps = {}) {
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
   
+  // Sort state  
+  const [sortBy, setSortBy] = useState('created_at')
+  const [sortOrder, setSortOrder] = useState('desc')
+  
   // Convert activeFilters to API parameters
   const apiFilters = React.useMemo(() => {
     const statusFilters = activeFilters.filter(f => ['open', 'resolved', 'expired', 'paused'].includes(f.toLowerCase()))
-    const categoryFilters = activeFilters.filter(f => ['crypto', 'political', 'sports', 'weather', 'economics', 'technology', 'other'].includes(f.toLowerCase()))
+    const categoryFilters = activeFilters.filter(f => !['open', 'resolved', 'expired', 'paused'].includes(f.toLowerCase()))
     
     // Convert 'open' to 'active' for backend API
     const convertStatusForApi = (status: string) => {
       return status === 'open' ? 'active' : status
     }
     
+    // Use category filters directly as they now match backend tag labels
     return {
       status: statusFilters.length > 0 ? convertStatusForApi(statusFilters[0].toLowerCase()) : undefined,
-      category: categoryFilters.length > 0 ? categoryFilters[0].toLowerCase() : undefined,
+      category: categoryFilters.length > 0 ? categoryFilters[0] : undefined, // Use directly without mapping
       search: activeSearchQuery.trim() || undefined // Use applied search query
     }
   }, [activeFilters, activeSearchQuery])
@@ -852,7 +858,9 @@ export function MarketOverview({ onAddFilterRef }: MarketOverviewProps = {}) {
     pageSize,
     status: apiFilters.status,
     category: apiFilters.category,
-    search: apiFilters.search
+    search: apiFilters.search,
+    sort: sortBy as ApiV1MarketsGetSortEnum,
+    order: sortOrder as ApiV1MarketsGetOrderEnum
   })
 
   // Search suggestions API call
@@ -1037,31 +1045,30 @@ export function MarketOverview({ onAddFilterRef }: MarketOverviewProps = {}) {
     }
   }
 
-  // Helper function to map API category to MarketCategory enum
-  const mapApiCategoryToMarketCategory = (category?: string): MarketCategory => {
-    if (!category) return MarketCategory.Other
+  // Helper function to extract main category from tags
+  const extractMainCategoryFromTags = (tags: unknown): MarketCategory | null => {
+    if (!tags || !Array.isArray(tags)) return null
     
-    switch (category.toLowerCase()) {
-      case 'crypto':
-      case 'cryptocurrency':
-        return MarketCategory.Crypto
-      case 'politics':
-      case 'political':
-        return MarketCategory.Political
-      case 'sports':
-        return MarketCategory.Sports
-      case 'weather':
-        return MarketCategory.Weather
-      case 'economics':
-      case 'economy':
-        return MarketCategory.Economics
-      case 'technology':
-      case 'tech':
-        return MarketCategory.Technology
-      default:
-        return MarketCategory.Other
+    const categoryMap: {[key: string]: MarketCategory} = {
+      'Crypto': MarketCategory.Crypto,
+      'Politics': MarketCategory.Political,
+      'Sports': MarketCategory.Sports,
+      'Weather': MarketCategory.Weather,
+      'Economics': MarketCategory.Economics,
+      'Technology': MarketCategory.Technology
     }
+    
+    for (const tag of tags) {
+      if (tag && typeof tag === 'object' && 'label' in tag) {
+        const label = (tag as {label?: string}).label
+        if (label && categoryMap[label]) {
+          return categoryMap[label]
+        }
+      }
+    }
+    return null
   }
+
 
   // Helper function to map API status to MarketStatus enum
   const mapApiStatusToMarketStatus = (status?: string): MarketStatus => {
@@ -1129,7 +1136,7 @@ export function MarketOverview({ onAddFilterRef }: MarketOverviewProps = {}) {
           isWinning: undefined,
         }
       ],
-      category: mapApiCategoryToMarketCategory(market.category),
+      category: extractMainCategoryFromTags(market.tags) || MarketCategory.Other,
       status: mapApiStatusToMarketStatus(market.status),
       createdAt: market.createdAt ? new Date(market.createdAt) : new Date(),
       expirationDate: market.endTime ? new Date(market.endTime) : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
@@ -1277,9 +1284,9 @@ export function MarketOverview({ onAddFilterRef }: MarketOverviewProps = {}) {
                          market.status === 'resolved' ? 'Resolved' : 
                          market.status?.toUpperCase()}
                       </span>
-                      {market.category && (
+                      {extractMainCategoryFromTags(market.tags) && (
                         <span className="text-xs text-gray-500 dark:text-gray-400 capitalize">
-                          {market.category}
+                          {extractMainCategoryFromTags(market.tags)}
                         </span>
                       )}
                     </div>
@@ -1338,60 +1345,64 @@ export function MarketOverview({ onAddFilterRef }: MarketOverviewProps = {}) {
             
             {/* Additional Topic Categories */}
             <button 
-              onClick={() => addFilter('sports')}
+              onClick={() => addFilter('Crypto')}
               className={`px-3 py-1 text-sm rounded-full transition-colors ${
-                activeFilters.includes('sports') 
-                  ? 'bg-blue-200 dark:bg-blue-800 text-blue-800 dark:text-blue-200' 
-                  : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/50'
+                activeFilters.includes('Crypto') 
+                  ? 'bg-yellow-200 dark:bg-yellow-800 text-yellow-800 dark:text-yellow-200' 
+                  : 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 hover:bg-yellow-200 dark:hover:bg-yellow-900/50'
               }`}
             >
-              Sports
+              ₿ Crypto
             </button>
             <button 
-              onClick={() => addFilter('political')}
+              onClick={() => addFilter('Politics')}
               className={`px-3 py-1 text-sm rounded-full transition-colors ${
-                activeFilters.includes('political') 
+                activeFilters.includes('Politics') 
                   ? 'bg-purple-200 dark:bg-purple-800 text-purple-800 dark:text-purple-200' 
                   : 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 hover:bg-purple-200 dark:hover:bg-purple-900/50'
               }`}
             >
-              Politics
+              🏛️ Politics
             </button>
             <button 
-              onClick={() => addFilter('technology')}
+              onClick={() => addFilter('Sports')}
               className={`px-3 py-1 text-sm rounded-full transition-colors ${
-                activeFilters.includes('technology') 
+                activeFilters.includes('Sports') 
+                  ? 'bg-blue-200 dark:bg-blue-800 text-blue-800 dark:text-blue-200' 
+                  : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/50'
+              }`}
+            >
+              ⚽ Sports
+            </button>
+            <button 
+              onClick={() => addFilter('Technology')}
+              className={`px-3 py-1 text-sm rounded-full transition-colors ${
+                activeFilters.includes('Technology') 
                   ? 'bg-indigo-200 dark:bg-indigo-800 text-indigo-800 dark:text-indigo-200' 
                   : 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-200 dark:hover:bg-indigo-900/50'
               }`}
             >
-              Technology
+              💻 Technology
             </button>
             <button 
-              onClick={() => addFilter('crypto')}
+              onClick={() => addFilter('Economics')}
               className={`px-3 py-1 text-sm rounded-full transition-colors ${
-                activeFilters.includes('crypto') 
-                  ? 'bg-yellow-200 dark:bg-yellow-800 text-yellow-800 dark:text-yellow-200' 
-                  : 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 hover:bg-yellow-200 dark:hover:bg-yellow-900/50'
+                activeFilters.includes('Economics') 
+                  ? 'bg-orange-200 dark:bg-orange-800 text-orange-800 dark:text-orange-200' 
+                  : 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 hover:bg-orange-200 dark:hover:bg-orange-900/50'
               }`}
             >
-              Crypto
-            </button>
-            <button 
-              onClick={() => addFilter('economics')}
-              className={`px-3 py-1 text-sm rounded-full transition-colors ${
-                activeFilters.includes('economics') 
-                  ? 'bg-yellow-200 dark:bg-yellow-800 text-yellow-800 dark:text-yellow-200' 
-                  : 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 hover:bg-yellow-200 dark:hover:bg-yellow-900/50'
-              }`}
-            >
-              Economics
+              📈 Economics
             </button>
             <button 
               onClick={() => addFilter('Entertainment')}
-              className="px-3 py-1 text-sm bg-pink-100 dark:bg-pink-900/30 text-pink-700 dark:text-pink-300 rounded-full hover:bg-pink-200 dark:hover:bg-pink-900/50 transition-colors"
+              className={`px-3 py-1 text-sm rounded-full transition-colors ${
+                activeFilters.includes('Entertainment') 
+                  ? 'bg-pink-200 dark:bg-pink-800 text-pink-800 dark:text-pink-200' 
+                  : 'bg-pink-100 dark:bg-pink-900/30 text-pink-700 dark:text-pink-300 hover:bg-pink-200 dark:hover:bg-pink-900/50'
+              }`}
             >
-              Entertainment
+              🎭 Entertainment
             </button>
             <button 
               onClick={() => addFilter('Polymarket Portfolio')}
@@ -1428,12 +1439,30 @@ export function MarketOverview({ onAddFilterRef }: MarketOverviewProps = {}) {
         
         <div className="flex items-center gap-2">
           <span className="text-sm text-gray-600 dark:text-gray-400">Sort by:</span>
-          <select className="text-sm border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+          <select 
+            value={sortBy}
+            onChange={(e) => {
+              const value = e.target.value
+              setSortBy(value)
+              // Reset to first page when sorting changes
+              setCurrentPage(1)
+            }}
+            className="text-sm border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="created_at">Newest</option>
             <option value="volume">Volume</option>
-            <option value="newest">Newest</option>
-            <option value="oldest">Oldest</option>
-            <option value="alphabetical">A-Z</option>
-            <option value="probability">Probability</option>
+            <option value="question">A-Z</option>
+          </select>
+          <select 
+            value={sortOrder}
+            onChange={(e) => {
+              setSortOrder(e.target.value)
+              setCurrentPage(1)
+            }}
+            className="text-sm border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="desc">↓ Desc</option>
+            <option value="asc">↑ Asc</option>
           </select>
         </div>
       </div>
@@ -1515,7 +1544,7 @@ export function MarketOverview({ onAddFilterRef }: MarketOverviewProps = {}) {
           onConfirmTrade={handleConfirmTrade}
           isTransacting={isTransacting}
           marketUuid={selectedCondition.conditionId}
-          apiVaultAddress={markets?.find(m => (m.id || m.slug) === selectedCondition.conditionId)?.vault_address}
+          apiVaultAddress={markets?.find(m => (m.id || m.slug) === selectedCondition.conditionId)?.vaultAddress}
           paymentAsset={paymentAsset}
           onPaymentAssetChange={setPaymentAsset}
         />

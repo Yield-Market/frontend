@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { MarketsApi, Configuration, HandlersMarketItem, HandlersMarketsListResponse } from '@/generated/api/src'
+import { MarketsApi, Configuration, HandlersMarketItem, HandlersMarketsListResponse, ApiV1MarketsGetSortEnum, ApiV1MarketsGetOrderEnum } from '@/generated/api/src'
 
 interface UseMarketsApiOptions {
   page?: number
@@ -7,6 +7,8 @@ interface UseMarketsApiOptions {
   category?: string
   status?: string
   search?: string
+  sort?: ApiV1MarketsGetSortEnum
+  order?: ApiV1MarketsGetOrderEnum
 }
 
 interface UseMarketsApiReturn {
@@ -28,7 +30,9 @@ export function useMarketsApi(options: UseMarketsApiOptions = {}): UseMarketsApi
     pageSize = 10,
     category,
     status,
-    search
+    search,
+    sort,
+    order
   } = options
 
   const fetchMarkets = useCallback(async () => {
@@ -49,7 +53,9 @@ export function useMarketsApi(options: UseMarketsApiOptions = {}): UseMarketsApi
         pageSize,
         category,
         status,
-        q: search
+        q: search,
+        sort,
+        order
       })
       
       setMarkets(response.items || [])
@@ -62,7 +68,7 @@ export function useMarketsApi(options: UseMarketsApiOptions = {}): UseMarketsApi
     } finally {
       setLoading(false)
     }
-  }, [page, pageSize, category, status, search])
+  }, [page, pageSize, category, status, search, sort, order])
 
   useEffect(() => {
     fetchMarkets()

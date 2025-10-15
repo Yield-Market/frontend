@@ -1,11 +1,11 @@
 'use client'
 
 import React, { useState } from 'react'
-import { MarketInfo, MarketCategory } from '@/types'
+import { HandlersMarketItem } from '@/generated/api/src'
 import { ChevronDownIcon, ChevronUpIcon } from '@heroicons/react/24/outline'
 
 interface MarketSelectorProps {
-  markets: MarketInfo[]
+  markets: HandlersMarketItem[]
   activeMarketSlug?: string
   onMarketSelect: (marketSlug: string) => void
   className?: string
@@ -18,37 +18,68 @@ export function MarketSelector({
   className = ''
 }: MarketSelectorProps) {
   const [isOpen, setIsOpen] = useState(false)
-  const [selectedCategory, setSelectedCategory] = useState<MarketCategory | 'all'>('all')
+  const [selectedCategory, setSelectedCategory] = useState<string | 'all'>('all')
 
   const activeMarket = markets.find(market => market.slug === activeMarketSlug)
   
+  // Extract categories from tags
+  const extractCategories = (tags: unknown): string[] => {
+    if (!tags || !Array.isArray(tags)) return []
+    return tags.map((tag: {label?: string}) => tag.label).filter(Boolean) as string[]
+  }
+
+  // Get main category (first tag label)
+  const getMainCategory = (market: HandlersMarketItem): string => {
+    const categories = extractCategories(market.tags)
+    return categories.length > 0 ? categories[0] : 'Other'
+  }
+
+  // Get all unique categories from all markets
+  const allCategories = React.useMemo(() => {
+    const categorySet = new Set<string>()
+    markets.forEach(market => {
+      const categories = extractCategories(market.tags)
+      categories.forEach(cat => categorySet.add(cat))
+    })
+    return Array.from(categorySet).sort()
+  }, [markets])
+
   const filteredMarkets = selectedCategory === 'all' 
     ? markets 
-    : markets.filter(market => market.category === selectedCategory)
+    : markets.filter(market => {
+        const categories = extractCategories(market.tags)
+        return categories.includes(selectedCategory)
+      })
 
-  const categories = ['all', ...Object.values(MarketCategory)] as const
+  const categories = ['all', ...allCategories] as const
 
-  const getCategoryIcon = (category: MarketCategory) => {
-    switch (category) {
-      case MarketCategory.Crypto:
+  const getCategoryIcon = (category: string) => {
+    const lowerCategory = category.toLowerCase()
+    switch (lowerCategory) {
+      case 'crypto':
+      case 'cryptocurrency':
         return '₿'
-      case MarketCategory.Political:
+      case 'politics':
+      case 'political':
         return '🏛️'
-      case MarketCategory.Sports:
+      case 'sports':
         return '⚽'
-      case MarketCategory.Weather:
+      case 'weather':
         return '🌤️'
-      case MarketCategory.Economics:
+      case 'economics':
+      case 'economy':
         return '📈'
-      case MarketCategory.Technology:
+      case 'technology':
+      case 'tech':
         return '💻'
       default:
         return '📊'
     }
   }
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status?: string) => {
     switch (status) {
+      case 'active':
       case 'open':
         return 'text-green-600 bg-green-100'
       case 'resolved':
@@ -74,17 +105,17 @@ export function MarketSelector({
             {activeMarket ? (
               <div>
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="text-lg">{getCategoryIcon(activeMarket.category)}</span>
+                  <span className="text-lg">{getCategoryIcon(getMainCategory(activeMarket))}</span>
                   <span className="text-sm font-medium text-gray-900 truncate">
                     {activeMarket.question}
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(activeMarket.status)}`}>
-                    {activeMarket.status.toUpperCase()}
+                    {(activeMarket.status || 'unknown').toUpperCase()}
                   </span>
                   <span className="text-xs text-gray-500">
-                    {activeMarket.category}
+                    {getMainCategory(activeMarket)}
                   </span>
                 </div>
               </div>
@@ -118,8 +149,8 @@ export function MarketSelector({
                 >
                   {category === 'all' ? 'All' : (
                     <>
-                      <span className="mr-1">{getCategoryIcon(category as MarketCategory)}</span>
-                      {category.charAt(0).toUpperCase() + category.slice(1)}
+                      <span className="mr-1">{getCategoryIcon(category)}</span>
+                      {category}
                     </>
                   )}
                 </button>
@@ -138,8 +169,10 @@ export function MarketSelector({
                 <button
                   key={market.slug}
                   onClick={() => {
-                    onMarketSelect(market.slug)
-                    setIsOpen(false)
+                    if (market.slug) {
+                      onMarketSelect(market.slug)
+                      setIsOpen(false)
+                    }
                   }}
                   className={`w-full p-4 text-left hover:bg-gray-50 transition-colors ${
                     market.slug === activeMarketSlug ? 'bg-blue-50 border-l-4 border-blue-500' : ''
@@ -148,21 +181,21 @@ export function MarketSelector({
                   <div className="flex items-start justify-between">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="text-lg">{getCategoryIcon(market.category)}</span>
+                        <span className="text-lg">{getCategoryIcon(getMainCategory(market))}</span>
                         <span className="text-sm font-medium text-gray-900 line-clamp-2">
                           {market.question}
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
                         <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(market.status)}`}>
-                          {market.status.toUpperCase()}
+                          {(market.status || 'unknown').toUpperCase()}
                         </span>
                         <span className="text-xs text-gray-500">
-                          {market.category}
+                          {getMainCategory(market)}
                         </span>
                         {market.endTime && (
                           <span className="text-xs text-gray-500">
-                            Ends: {new Date(market.endTime * 1000).toLocaleDateString()}
+                            Ends: {new Date(market.endTime).toLocaleDateString()}
                           </span>
                         )}
                       </div>
