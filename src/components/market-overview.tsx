@@ -902,7 +902,10 @@ export function MarketOverview({ onAddFilterRef }: MarketOverviewProps = {}) {
   }, [searchQuery, searchApi, apiFilters.status, apiFilters.category])
 
   const addFilter = React.useCallback((category: string) => {
-    const normalizedCategory = category.toLowerCase()
+    // For API compatibility, status filters should be lowercase, but category filters should preserve case
+    const normalizedCategory = ['open', 'resolved', 'expired', 'paused'].includes(category.toLowerCase()) 
+      ? category.toLowerCase() 
+      : category // Keep original case for category tags like "Crypto", "Politics"
     if (!activeFilters.includes(normalizedCategory) && activeFilters.length < 5) {
       setActiveFilters([...activeFilters, normalizedCategory])
     }
@@ -916,13 +919,16 @@ export function MarketOverview({ onAddFilterRef }: MarketOverviewProps = {}) {
   }, [onAddFilterRef, addFilter])
 
   const removeFilter = (category: string) => {
-    const normalizedCategory = category.toLowerCase()
-    if (['open', 'resolved', 'trending'].includes(normalizedCategory)) {
+    // For consistency with addFilter, preserve case for category filters but normalize status filters
+    const normalizedCategory = ['open', 'resolved', 'expired', 'paused'].includes(category.toLowerCase()) 
+      ? category.toLowerCase() 
+      : category
+    if (['open', 'resolved', 'trending'].includes(normalizedCategory.toLowerCase())) {
       // For core filters, allow complete removal
-      const nonCoreFilters = activeFilters.filter(f => !['open', 'resolved', 'trending'].includes(f))
-      if (normalizedCategory === 'open') {
+      const nonCoreFilters = activeFilters.filter(f => !['open', 'resolved', 'trending'].includes(f.toLowerCase()))
+      if (normalizedCategory.toLowerCase() === 'open') {
         // If removing 'open', keep other core filters + non-core filters
-        const otherCoreFilters = activeFilters.filter(f => ['resolved', 'trending'].includes(f))
+        const otherCoreFilters = activeFilters.filter(f => ['resolved', 'trending'].includes(f.toLowerCase()))
         setActiveFilters([...otherCoreFilters, ...nonCoreFilters])
       } else {
         // If removing 'resolved' or 'trending', keep other filters (including open if present)
@@ -930,7 +936,7 @@ export function MarketOverview({ onAddFilterRef }: MarketOverviewProps = {}) {
         setActiveFilters(otherFilters)
       }
     } else {
-      // For non-core filters, simply remove them
+      // For non-core filters, simply remove them (exact match to preserve case)
       setActiveFilters(activeFilters.filter(f => f !== normalizedCategory))
     }
   }

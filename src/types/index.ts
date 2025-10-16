@@ -48,13 +48,13 @@ export enum ResolutionState {
 }
 
 export enum MarketCategory {
-  Crypto = 'crypto',
-  Political = 'political', 
-  Weather = 'weather',
-  Sports = 'sports',
-  Economics = 'economics',
-  Technology = 'technology',
-  Other = 'other'
+  Crypto = 'Crypto',
+  Political = 'Political', 
+  Weather = 'Weather',
+  Sports = 'Sports',
+  Economics = 'Economics',
+  Technology = 'Technology',
+  Other = 'Other'
 }
 
 export enum MarketStatus {
