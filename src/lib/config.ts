@@ -10,7 +10,7 @@ export const NETWORK_CONFIG = {
   
   // RPC URLs for each network
   RPC_URLS: {
-    137: process.env.NEXT_PUBLIC_POLYGON_RPC_URL || 'https://polygon-mainnet.g.alchemy.com/v2/_N_znMIMAmFWB4HOvD6xgdl_PSUfZSJU',
+    137: process.env.NEXT_PUBLIC_POLYGON_RPC_URL || 'https://polygon-rpc.com',
     80002: process.env.NEXT_PUBLIC_AMOY_RPC_URL || 'https://rpc-amoy.polygon.technology',
   },
   
